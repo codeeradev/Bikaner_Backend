@@ -2,18 +2,12 @@ const mongoose = require("mongoose");
 
 const zoneSchema = new mongoose.Schema(
 {
-    cityId:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"cities",
-        required:true
-    },
-
     name:{
         type:String,
         required:true
     },
 
-    code:String,
+    description:String,
 
     deliveryCharge:{
         type:Number,

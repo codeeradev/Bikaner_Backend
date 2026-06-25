@@ -1,10 +1,12 @@
 const express = require("express");
 const router = express.Router();
+const upload = require("../middleware/upload");
 
 // Import controllers
 const categoryController = require("../controllers/categoryController");
 const cityController = require("../controllers/cityController");
 const zoneController = require("../controllers/zoneController");
+const productController = require("../controllers/productController");
 
 // ============= CATEGORY ROUTES =============
 // GET all categories
@@ -13,11 +15,11 @@ router.get("/categories", categoryController.getAllCategories);
 // GET single category by ID
 router.get("/categories/:id", categoryController.getCategoryById);
 
-// POST create new category
-router.post("/categories", categoryController.createCategory);
+// POST create new category (with image upload)
+router.post("/categories", upload.single('image'), categoryController.createCategory);
 
-// PUT update category
-router.put("/categories/:id", categoryController.updateCategory);
+// PUT update category (with image upload)
+router.put("/categories/:id", upload.single('image'), categoryController.updateCategory);
 
 // DELETE category
 router.delete("/categories/:id", categoryController.deleteCategory);
@@ -68,5 +70,33 @@ router.delete("/zones/:id", zoneController.deleteZone);
 
 // PATCH toggle zone status
 router.patch("/zones/:id/toggle-status", zoneController.toggleZoneStatus);
+
+// ============= PRODUCT ROUTES =============
+// GET all products
+router.get("/products", productController.getAllProducts);
+
+// GET single product by ID
+router.get("/products/:id", productController.getProductById);
+
+// POST create new product (with image and gallery upload)
+router.post("/products", upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'gallery', maxCount: 10 }
+]), productController.createProduct);
+
+// PUT update product (with image and gallery upload)
+router.put("/products/:id", upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'gallery', maxCount: 10 }
+]), productController.updateProduct);
+
+// DELETE product
+router.delete("/products/:id", productController.deleteProduct);
+
+// PATCH toggle product status
+router.patch("/products/:id/toggle-status", productController.toggleProductStatus);
+
+// PATCH toggle product featured status
+router.patch("/products/:id/toggle-featured", productController.toggleProductFeatured);
 
 module.exports = router;

@@ -61,7 +61,8 @@ exports.getCategoryById = async (req, res) => {
 // Create new category
 exports.createCategory = async (req, res) => {
   try {
-    const { name, image, description, sortOrder, isActive } = req.body;
+    const { name, description, sortOrder, isActive } = req.body;
+    const image = req.file ? `/assets/uploads/${req.file.filename}` : null;
 
     if (!name) {
       return res.status(400).json({
@@ -97,7 +98,8 @@ exports.createCategory = async (req, res) => {
 // Update category
 exports.updateCategory = async (req, res) => {
   try {
-    const { name, image, description, sortOrder, isActive } = req.body;
+    const { name, description, sortOrder, isActive } = req.body;
+    const image = req.file ? `/assets/uploads/${req.file.filename}` : undefined;
 
     const category = await Category.findById(req.params.id);
 

@@ -230,7 +230,7 @@ exports.getCityWithZones = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        city,
+        city: transformCity(city),
         zones
       }
     });

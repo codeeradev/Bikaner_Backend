@@ -1,17 +1,14 @@
 const Zone = require("../models/zones");
-const City = require("../models/cities");
 
 // Get all zones
 exports.getAllZones = async (req, res) => {
   try {
-    const { cityId, isActive, page = 1, limit = 10 } = req.query;
+    const { isActive, page = 1, limit = 10 } = req.query;
     
     const filter = {};
-    if (cityId) filter.cityId = cityId;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
 
     const zones = await Zone.find(filter)
-      .populate('cityId', 'name')
       .sort({ name: 1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -37,7 +34,7 @@ exports.getAllZones = async (req, res) => {
 // Get single zone by ID
 exports.getZoneById = async (req, res) => {
   try {
-    const zone = await Zone.findById(req.params.id).populate('cityId', 'name');
+    const zone = await Zone.findById(req.params.id);
     
     if (!zone) {
       return res.status(404).json({
@@ -59,19 +56,17 @@ exports.getZoneById = async (req, res) => {
   }
 };
 
-// Get zones by city
+// Get zones by city (deprecated but kept for compatibility)
 exports.getZonesByCity = async (req, res) => {
   try {
     const { isActive } = req.query;
     
-    const filter = { cityId: req.params.cityId };
+    const filter = {};
     if (isActive !== undefined) {
       filter.isActive = isActive === 'true';
     }
 
-    const zones = await Zone.find(filter)
-      .populate('cityId', 'name')
-      .sort({ name: 1 });
+    const zones = await Zone.find(filter).sort({ name: 1 });
 
     res.status(200).json({
       success: true,
@@ -81,7 +76,7 @@ exports.getZonesByCity = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error fetching zones by city",
+      message: "Error fetching zones",
       error: error.message
     });
   }
@@ -91,48 +86,36 @@ exports.getZonesByCity = async (req, res) => {
 exports.createZone = async (req, res) => {
   try {
     const { 
-      cityId, 
       name, 
-      code, 
+      description,
       deliveryCharge, 
       minimumOrderAmount, 
       estimatedDeliveryTime, 
       isActive 
     } = req.body;
 
-    if (!cityId || !name) {
+    if (!name) {
       return res.status(400).json({
         success: false,
-        message: "City ID and zone name are required"
+        message: "Zone name is required"
       });
     }
 
-    // Verify city exists
-    const city = await City.findById(cityId);
-    if (!city) {
-      return res.status(404).json({
-        success: false,
-        message: "City not found"
-      });
-    }
-
-    // Check for duplicate zone name in same city
+    // Check for duplicate zone name
     const existingZone = await Zone.findOne({ 
-      cityId, 
       name: new RegExp(`^${name}$`, 'i') 
     });
     
     if (existingZone) {
       return res.status(400).json({
         success: false,
-        message: "Zone with this name already exists in the city"
+        message: "Zone with this name already exists"
       });
     }
 
     const zone = new Zone({
-      cityId,
       name,
-      code,
+      description,
       deliveryCharge,
       minimumOrderAmount,
       estimatedDeliveryTime,
@@ -140,7 +123,6 @@ exports.createZone = async (req, res) => {
     });
 
     await zone.save();
-    await zone.populate('cityId', 'name');
 
     res.status(201).json({
       success: true,
@@ -160,9 +142,8 @@ exports.createZone = async (req, res) => {
 exports.updateZone = async (req, res) => {
   try {
     const { 
-      cityId, 
       name, 
-      code, 
+      description,
       deliveryCharge, 
       minimumOrderAmount, 
       estimatedDeliveryTime, 
@@ -178,22 +159,9 @@ exports.updateZone = async (req, res) => {
       });
     }
 
-    // If cityId is being changed, verify new city exists
-    if (cityId !== undefined && cityId !== zone.cityId.toString()) {
-      const city = await City.findById(cityId);
-      if (!city) {
-        return res.status(404).json({
-          success: false,
-          message: "City not found"
-        });
-      }
-      zone.cityId = cityId;
-    }
-
     // Check for duplicate zone name if name is being changed
     if (name !== undefined && name !== zone.name) {
       const existingZone = await Zone.findOne({ 
-        cityId: cityId || zone.cityId,
         name: new RegExp(`^${name}$`, 'i'),
         _id: { $ne: req.params.id }
       });
@@ -201,21 +169,20 @@ exports.updateZone = async (req, res) => {
       if (existingZone) {
         return res.status(400).json({
           success: false,
-          message: "Zone with this name already exists in the city"
+          message: "Zone with this name already exists"
         });
       }
       
       zone.name = name;
     }
 
-    if (code !== undefined) zone.code = code;
+    if (description !== undefined) zone.description = description;
     if (deliveryCharge !== undefined) zone.deliveryCharge = deliveryCharge;
     if (minimumOrderAmount !== undefined) zone.minimumOrderAmount = minimumOrderAmount;
     if (estimatedDeliveryTime !== undefined) zone.estimatedDeliveryTime = estimatedDeliveryTime;
     if (isActive !== undefined) zone.isActive = isActive;
 
     await zone.save();
-    await zone.populate('cityId', 'name');
 
     res.status(200).json({
       success: true,
@@ -259,7 +226,7 @@ exports.deleteZone = async (req, res) => {
 // Toggle zone status
 exports.toggleZoneStatus = async (req, res) => {
   try {
-    const zone = await Zone.findById(req.params.id).populate('cityId', 'name');
+    const zone = await Zone.findById(req.params.id);
 
     if (!zone) {
       return res.status(404).json({

@@ -1,5 +1,6 @@
 const express = require("express");
 const http = require("http");
+const path = require("path");
 require("dotenv").config();
 const connectDb = require("./database");
 
@@ -10,6 +11,9 @@ app.use(cors());
 
 app.use(express.json());
 
+// Serve static files from assets directory
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
+
 const server = http.createServer(app);
 
 const routes = require("./routes/route");
@@ -18,7 +22,7 @@ app.get("/", (req, res) => {
   res.send("Bikaner Biscuit API is running ...");
 });
 
-app.use("/api", routes);
+app.use("/", routes);
 
 const startServer = async () => {
   const mongoConnection = await connectDb();

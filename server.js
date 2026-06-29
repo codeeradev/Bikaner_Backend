@@ -18,13 +18,14 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 const server = http.createServer(app);
 
 const routes = require("./routes/route");
-const appRoutes = require("./routes/route");
+const appRoutes = require("./routes/appRoute");
 app.get("/", (req, res) => {
   res.send("Bikaner Biscuit API is running ...");
 });
 
 app.use("/", routes);
-app.use("/api", appRoutes);
+app.use("/apis", appRoutes);
+
 const startServer = async () => {
   try {
     // Connect to database
@@ -41,16 +42,6 @@ const startServer = async () => {
     
     server.listen(PORT, () => {
       console.log(`\n🚀 Server running at http://${host}:${PORT}`);
-      console.log(`\n📚 API Endpoints:`);
-      console.log(`   - POST http://${host}:${PORT}/api/auth/login`);
-      console.log(`   - GET  http://${host}:${PORT}/api/roles`);
-      console.log(`   - GET  http://${host}:${PORT}/api/users`);
-      console.log(`   - GET  http://${host}:${PORT}/api/products`);
-      console.log(`   - GET  http://${host}:${PORT}/api/categories`);
-      console.log(`\n👤 Default Admin Credentials:`);
-      console.log(`   Mobile: 9999999999`);
-      console.log(`   Password: admin123`);
-      console.log(`   ⚠️  Change this password after first login!`);
       console.log(`\n✅ Server is ready to accept requests!`);
     });
   } catch (error) {

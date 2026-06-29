@@ -6,3 +6,5 @@ const { getActiveCategories } = require("../controllers/categoryController");
 
 
 router.get("/categories", getActiveCategories);
+
+module.exports = router;

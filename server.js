@@ -24,7 +24,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/", routes);
-app.use("/apis", appRoutes);
+app.use("/api", appRoutes);
 
 const startServer = async () => {
   try {

@@ -17,9 +17,7 @@ const productSchema = new mongoose.Schema(
 
     image:String,
 
-    gallery:[String],
-
-    weight:Number,
+    unitValue:Number,
 
     unit:String,
 

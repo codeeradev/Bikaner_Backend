@@ -1,5 +1,23 @@
 const Category = require("../models/categories");
 
+exports.getActiveCategories = async (req, res) => {
+  try {
+    const categories = await Category.find({ isActive: true })
+      .sort({ sortOrder: 1, createdAt: -1 }).select('-__v');
+
+    res.status(200).json({
+      success: true,
+      data: categories
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching active categories",
+      error: error.message
+    });
+  }
+};
+
 // Get all categories
 exports.getAllCategories = async (req, res) => {
   try {
@@ -73,6 +91,7 @@ exports.createCategory = async (req, res) => {
 
     const category = new Category({
       name,
+      slug: generateSlug(name),
       image,
       description,
       sortOrder,

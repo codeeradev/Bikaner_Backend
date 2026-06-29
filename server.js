@@ -18,13 +18,13 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 const server = http.createServer(app);
 
 const routes = require("./routes/route");
-
+const appRoutes = require("./routes/route");
 app.get("/", (req, res) => {
   res.send("Bikaner Biscuit API is running ...");
 });
 
 app.use("/", routes);
-
+app.use("/api", appRoutes);
 const startServer = async () => {
   try {
     // Connect to database

@@ -24,6 +24,8 @@ const zoneSchema = new mongoose.Schema(
         default:60
     },
 
+    cityId:{ type:mongoose.Schema.Types.ObjectId, ref:"cities", required:true },
+
     isActive:{
         type:Boolean,
         default:true

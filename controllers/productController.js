@@ -1,7 +1,8 @@
 const Product = require("../models/products");
 const Category = require("../models/categories");
-
+const { generateSlug } = require("../utils/slugify");
 // Get all products
+
 exports.getAllProducts = async (req, res) => {
   try {
     const {
@@ -82,10 +83,9 @@ exports.createProduct = async (req, res) => {
     const {
       categoryId,
       name,
-      slug,
       description,
       sku,
-      weight,
+      unitValue,
       unit,
       mrp,
       sellingPrice,
@@ -99,9 +99,6 @@ exports.createProduct = async (req, res) => {
     const image = req.files?.image
       ? `/assets/uploads/${req.files.image[0].filename}`
       : null;
-    const gallery = req.files?.gallery
-      ? req.files.gallery.map((file) => `/assets/uploads/${file.filename}`)
-      : [];
 
     if (!name) {
       return res.status(400).json({
@@ -129,12 +126,11 @@ exports.createProduct = async (req, res) => {
     const product = new Product({
       categoryId,
       name,
-      slug: slug || name.toLowerCase().replace(/\s+/g, "-"),
+      slug: generateSlug(name),
       description,
       sku,
       image,
-      gallery,
-      weight,
+      unitValue,
       unit,
       mrp,
       sellingPrice,
@@ -170,10 +166,9 @@ exports.updateProduct = async (req, res) => {
     const {
       categoryId,
       name,
-      slug,
       description,
       sku,
-      weight,
+      unitValue,
       unit,
       mrp,
       sellingPrice,
@@ -198,16 +193,6 @@ exports.updateProduct = async (req, res) => {
       product.image = `/assets/uploads/${req.files.image[0].filename}`;
     }
 
-    // Handle gallery upload
-    if (req.files?.gallery) {
-      const newGalleryImages = req.files.gallery.map(
-        (file) => `/assets/uploads/${file.filename}`,
-      );
-      product.gallery = product.gallery
-        ? [...product.gallery, ...newGalleryImages]
-        : newGalleryImages;
-    }
-
     // Verify category if being updated
     if (categoryId && categoryId !== product.categoryId.toString()) {
       const category = await Category.findById(categoryId);
@@ -221,10 +206,13 @@ exports.updateProduct = async (req, res) => {
     }
 
     if (name !== undefined) product.name = name;
-    if (slug !== undefined) product.slug = slug;
+    if (name !== undefined) {
+      product.name = name;
+      product.slug = generateSlug(name);
+    }
     if (description !== undefined) product.description = description;
     if (sku !== undefined) product.sku = sku;
-    if (weight !== undefined) product.weight = weight;
+    if (unitValue !== undefined) product.unitValue = unitValue;
     if (unit !== undefined) product.unit = unit;
     if (mrp !== undefined) product.mrp = mrp;
     if (sellingPrice !== undefined) product.sellingPrice = sellingPrice;

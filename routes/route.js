@@ -142,16 +142,14 @@ router.get("/api/products", authenticateToken, checkPermission(PERMISSIONS.PRODU
 // GET single product by ID
 router.get("/api/products/:id", authenticateToken, checkPermission(PERMISSIONS.PRODUCTS_VIEW), productController.getProductById);
 
-// POST create new product (with image and gallery upload)
+// POST create new product (with image)
 router.post("/api/products", authenticateToken, checkPermission(PERMISSIONS.PRODUCTS_CREATE), upload.fields([
   { name: 'image', maxCount: 1 },
-  { name: 'gallery', maxCount: 10 }
 ]), productController.createProduct);
 
-// PUT update product (with image and gallery upload)
+// PUT update product (with image)
 router.put("/api/products/:id", authenticateToken, checkPermission(PERMISSIONS.PRODUCTS_EDIT), upload.fields([
   { name: 'image', maxCount: 1 },
-  { name: 'gallery', maxCount: 10 }
 ]), productController.updateProduct);
 
 // DELETE product

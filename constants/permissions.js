@@ -12,6 +12,7 @@ const MODULES = {
   DASHBOARD: 'dashboard',
   CATEGORIES: 'categories',
   PRODUCTS: 'products',
+  BANNERS: 'banners',
   ZONES: 'zones',
   CITIES: 'cities',
   ORDERS: 'orders',
@@ -63,6 +64,12 @@ const PERMISSIONS = {
   PRODUCTS_CREATE: createPermission(MODULES.PRODUCTS, ACTIONS.CREATE),
   PRODUCTS_EDIT: createPermission(MODULES.PRODUCTS, ACTIONS.EDIT),
   PRODUCTS_DELETE: createPermission(MODULES.PRODUCTS, ACTIONS.DELETE),
+
+  // Banners
+  BANNERS_VIEW: createPermission(MODULES.BANNERS, ACTIONS.VIEW),
+  BANNERS_CREATE: createPermission(MODULES.BANNERS, ACTIONS.CREATE),
+  BANNERS_EDIT: createPermission(MODULES.BANNERS, ACTIONS.EDIT),
+  BANNERS_DELETE: createPermission(MODULES.BANNERS, ACTIONS.DELETE),
 
   // Zones
   ZONES_VIEW: createPermission(MODULES.ZONES, ACTIONS.VIEW),

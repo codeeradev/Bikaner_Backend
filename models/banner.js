@@ -12,7 +12,7 @@ const bannerSchema = new mongoose.Schema(
     },
     productId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
+      ref: "products",
     },
     isActive: {
       type: Boolean,

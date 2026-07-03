@@ -91,7 +91,6 @@ exports.createCategory = async (req, res) => {
 
     const category = new Category({
       name,
-      slug: generateSlug(name),
       image,
       description,
       sortOrder,

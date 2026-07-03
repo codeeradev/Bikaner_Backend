@@ -19,13 +19,11 @@ const zoneSchema = new mongoose.Schema(
         default:0
     },
 
-    estimatedDeliveryTime:{
-        type:Number,
-        default:60
-    },
-
     cityId:{ type:mongoose.Schema.Types.ObjectId, ref:"cities", required:true },
 
+    lat:{ type:Number, required:true },
+    
+    lng:{ type:Number, required:true },
     isActive:{
         type:Boolean,
         default:true

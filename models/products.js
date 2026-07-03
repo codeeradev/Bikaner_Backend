@@ -27,6 +27,16 @@ const productSchema = new mongoose.Schema(
 
     bulkPrice:Number,
 
+    city:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"cities"
+    },
+
+    zone:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"zones"
+    },
+
     stock:{
         type:Number,
         default:0

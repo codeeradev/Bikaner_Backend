@@ -117,12 +117,6 @@ router.patch("/cities/:id/toggle-status", authenticateToken, checkPermission(PER
 // GET all zones
 router.get("/zones", authenticateToken, checkPermission(PERMISSIONS.ZONES_VIEW), zoneController.getAllZones);
 
-// GET zones by city
-router.get("/zones/city/:cityId", authenticateToken, checkPermission(PERMISSIONS.ZONES_VIEW), zoneController.getZonesByCity);
-
-// GET single zone by ID
-router.get("/zones/:id", authenticateToken, checkPermission(PERMISSIONS.ZONES_VIEW), zoneController.getZoneById);
-
 // POST create new zone
 router.post("/zones", authenticateToken, checkPermission(PERMISSIONS.ZONES_CREATE), zoneController.createZone);
 

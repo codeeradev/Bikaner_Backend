@@ -10,7 +10,11 @@ const citySchema = new mongoose.Schema(
     isActive:{
         type:Boolean,
         default:true
-    }
+    },
+
+    lat:Number,
+
+    lng:Number
 },
 {
     timestamps:true

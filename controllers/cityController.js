@@ -62,7 +62,7 @@ exports.getCityById = async (req, res) => {
 // Create new city
 exports.createCity = async (req, res) => {
   try {
-    const { name, isActive } = req.body;
+    const { name, isActive, lat, lng } = req.body;
 
     if (!name) {
       return res.status(400).json({
@@ -81,7 +81,9 @@ exports.createCity = async (req, res) => {
 
     const city = new City({
       name,
-      isActive
+      isActive,
+      lat,
+      lng
     });
 
     await city.save();
@@ -103,7 +105,7 @@ exports.createCity = async (req, res) => {
 // Update city
 exports.updateCity = async (req, res) => {
   try {
-    const { name, isActive } = req.body;
+    const { name, isActive, lat, lng } = req.body;
 
     const city = await City.findById(req.params.id);
 
@@ -131,6 +133,8 @@ exports.updateCity = async (req, res) => {
     }
     
     if (isActive !== undefined) city.isActive = isActive;
+    if (lat !== undefined) city.lat = lat;
+    if (lng !== undefined) city.lng = lng;
 
     await city.save();
 

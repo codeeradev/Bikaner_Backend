@@ -58,6 +58,9 @@ const userSchema = new mongoose.Schema(
         default:false
     },
 
+    lat:Number,
+    lng:Number,
+
     status:{
         type:String,
         enum:["active","inactive"],

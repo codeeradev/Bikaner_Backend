@@ -24,11 +24,10 @@ const categorySchema = new mongoose.Schema(
     timestamps:true
 }
 );
-categorySchema.pre("save", function (next) {
+categorySchema.pre("save", function () {
   if (this.isModified("name")) {
     this.slug = generateSlug(this.name);
   }
-  next();
 });
 
 module.exports = mongoose.model("categories", categorySchema);

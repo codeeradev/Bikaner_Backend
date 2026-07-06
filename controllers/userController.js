@@ -184,6 +184,7 @@ const createUser = async (req, res) => {
       allowedCategories: allowedCategories || [],
       customPricingEnabled: customPricingEnabled || false,
       status,
+      constRoleId: 4, // Store the constant role ID for reference
       profileImage: req.file ? `/assets/users/${req.file.filename}` : ''
     });
 
@@ -363,7 +364,7 @@ const deleteUser = async (req, res) => {
     }
 
     // Prevent deleting Admin users
-    if (user.roleId && user.roleId.name === SPECIAL_ROLES.ADMIN) {
+    if (user.roleId.name === SPECIAL_ROLES.ADMIN || user.roleId.name === SPECIAL_ROLES.FRANCHISE) {
       return res.status(403).json({
         success: false,
         message: "Cannot delete Admin users"

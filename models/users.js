@@ -70,7 +70,8 @@ const userSchema = new mongoose.Schema(
     isBlocked:{
         type:Boolean,
         default:false
-    }
+    },
+    constRoleId:Number, // This field is used to store the constant role ID for reference
 },
 {
     timestamps:true

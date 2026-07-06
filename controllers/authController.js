@@ -6,11 +6,9 @@ const Role = require("../models/roles");
  * Generate JWT token
  */
 const generateToken = (userId) => {
-  return jwt.sign(
-    { userId },
-    process.env.JWT_SECRET || 'your-secret-key',
-    { expiresIn: process.env.JWT_EXPIRY || '24h' }
-  );
+  return jwt.sign({ userId }, process.env.JWT_SECRET || "your-secret-key", {
+    expiresIn: process.env.JWT_EXPIRY || "24h",
+  });
 };
 
 /**
@@ -19,8 +17,8 @@ const generateToken = (userId) => {
 const generateRefreshToken = (userId) => {
   return jwt.sign(
     { userId },
-    process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
-    { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
+    process.env.JWT_REFRESH_SECRET || "your-refresh-secret-key",
+    { expiresIn: process.env.JWT_REFRESH_EXPIRY || "7d" },
   );
 };
 
@@ -35,18 +33,18 @@ const login = async (req, res) => {
     if ((!mobile && !email) || !password) {
       return res.status(400).json({
         success: false,
-        message: "Mobile/Email and password are required"
+        message: "Mobile/Email and password are required",
       });
     }
 
     // Find user by mobile or email
     const query = mobile ? { mobile } : { email };
-    const user = await User.findOne(query).populate('roleId');
+    const user = await User.findOne(query).populate("roleId");
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "Invalid credentials"
+        message: "Invalid credentials",
       });
     }
 
@@ -57,15 +55,15 @@ const login = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: "Invalid credentials"
+        message: "Invalid credentials",
       });
     }
 
     // Check if user is active
-    if (user.status !== 'active') {
+    if (user.status !== "active") {
       return res.status(403).json({
         success: false,
-        message: "Your account is inactive. Please contact administrator."
+        message: "Your account is inactive. Please contact administrator.",
       });
     }
 
@@ -73,7 +71,7 @@ const login = async (req, res) => {
     if (user.isBlocked) {
       return res.status(403).json({
         success: false,
-        message: "Your account has been blocked. Please contact administrator."
+        message: "Your account has been blocked. Please contact administrator.",
       });
     }
 
@@ -81,10 +79,16 @@ const login = async (req, res) => {
     if (!user.roleId || !user.roleId.isActive) {
       return res.status(403).json({
         success: false,
-        message: "Your role is inactive. Please contact administrator."
+        message: "Your role is inactive. Please contact administrator.",
       });
     }
-
+    
+    if (!user.constRoleId || user.constRoleId != 4) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to login.",
+      });
+    }
     // Generate tokens
     const token = generateToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
@@ -101,7 +105,7 @@ const login = async (req, res) => {
       permissions: user.roleId.permissions || [],
       cityId: user.cityId,
       zoneIds: user.zoneIds,
-      status: user.status
+      status: user.status,
     };
 
     res.json({
@@ -109,14 +113,14 @@ const login = async (req, res) => {
       message: "Login successful",
       token,
       refreshToken,
-      user: userData
+      user: userData,
     });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({
       success: false,
       message: "Login failed",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -131,31 +135,31 @@ const refreshToken = async (req, res) => {
     if (!refreshToken) {
       return res.status(400).json({
         success: false,
-        message: "Refresh token is required"
+        message: "Refresh token is required",
       });
     }
 
     // Verify refresh token
     const decoded = jwt.verify(
-      refreshToken, 
-      process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key'
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET || "your-refresh-secret-key",
     );
 
     // Fetch user
-    const user = await User.findById(decoded.userId).populate('roleId');
+    const user = await User.findById(decoded.userId).populate("roleId");
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "Invalid refresh token"
+        message: "Invalid refresh token",
       });
     }
 
     // Check user status
-    if (user.status !== 'active' || user.isBlocked) {
+    if (user.status !== "active" || user.isBlocked) {
       return res.status(403).json({
         success: false,
-        message: "Account is inactive or blocked"
+        message: "Account is inactive or blocked",
       });
     }
 
@@ -166,13 +170,16 @@ const refreshToken = async (req, res) => {
     res.json({
       success: true,
       token: newToken,
-      refreshToken: newRefreshToken
+      refreshToken: newRefreshToken,
     });
   } catch (error) {
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+    if (
+      error.name === "JsonWebTokenError" ||
+      error.name === "TokenExpiredError"
+    ) {
       return res.status(401).json({
         success: false,
-        message: "Invalid or expired refresh token"
+        message: "Invalid or expired refresh token",
       });
     }
 
@@ -180,7 +187,7 @@ const refreshToken = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Token refresh failed",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -197,14 +204,14 @@ const logout = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Logout successful"
+      message: "Logout successful",
     });
   } catch (error) {
     console.error("Logout error:", error);
     res.status(500).json({
       success: false,
       message: "Logout failed",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -217,29 +224,29 @@ const getProfile = async (req, res) => {
     const userId = req.userId;
 
     const user = await User.findById(userId)
-      .populate('roleId', 'name permissions isActive')
-      .populate('cityId', 'name')
-      .populate('zoneIds', 'name')
-      .populate('allowedCategories', 'name')
-      .select('-password');
+      .populate("roleId", "name permissions isActive")
+      .populate("cityId", "name")
+      .populate("zoneIds", "name")
+      .populate("allowedCategories", "name")
+      .select("-password");
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
     res.json({
       success: true,
-      data: user
+      data: user,
     });
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch profile",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -257,20 +264,20 @@ const updateProfile = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
     // Update basic info
     if (name) user.name = name;
-    
+
     // Check email uniqueness if changing
     if (email !== undefined && email !== user.email) {
       const existingEmail = await User.findOne({ email, _id: { $ne: userId } });
       if (existingEmail) {
         return res.status(400).json({
           success: false,
-          message: "Email already in use"
+          message: "Email already in use",
         });
       }
       user.email = email;
@@ -278,11 +285,14 @@ const updateProfile = async (req, res) => {
 
     // Check mobile uniqueness if changing
     if (mobile && mobile !== user.mobile) {
-      const existingMobile = await User.findOne({ mobile, _id: { $ne: userId } });
+      const existingMobile = await User.findOne({
+        mobile,
+        _id: { $ne: userId },
+      });
       if (existingMobile) {
         return res.status(400).json({
           success: false,
-          message: "Mobile number already in use"
+          message: "Mobile number already in use",
         });
       }
       user.mobile = mobile;
@@ -292,11 +302,11 @@ const updateProfile = async (req, res) => {
     if (currentPassword && newPassword) {
       // Verify current password (In production, use bcrypt.compare)
       const isPasswordValid = currentPassword === user.password; // TODO: Implement bcrypt
-      
+
       if (!isPasswordValid) {
         return res.status(400).json({
           success: false,
-          message: "Current password is incorrect"
+          message: "Current password is incorrect",
         });
       }
 
@@ -312,22 +322,22 @@ const updateProfile = async (req, res) => {
 
     // Return updated user without password
     const updatedUser = await User.findById(userId)
-      .populate('roleId', 'name permissions isActive')
-      .populate('cityId', 'name')
-      .populate('zoneIds', 'name')
-      .select('-password');
+      .populate("roleId", "name permissions isActive")
+      .populate("cityId", "name")
+      .populate("zoneIds", "name")
+      .select("-password");
 
     res.json({
       success: true,
       message: "Profile updated successfully",
-      data: updatedUser
+      data: updatedUser,
     });
   } catch (error) {
     console.error("Error updating profile:", error);
     res.status(500).json({
       success: false,
       message: "Failed to update profile",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -337,5 +347,5 @@ module.exports = {
   refreshToken,
   logout,
   getProfile,
-  updateProfile
+  updateProfile,
 };

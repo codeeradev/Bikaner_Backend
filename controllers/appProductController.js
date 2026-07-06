@@ -4,9 +4,13 @@ const mongoose = require("mongoose");
 
 exports.getCategoryProducts = async (req, res) => {
   try {
+    const userId = req.user;
     const { categoryId } = req.params;
 
-    const products = await Product.find({ categoryId, isActive: true }).populate("categoryId", "name");
+    const products = await Product.find({
+      categoryId,
+      isActive: true,
+    }).populate("categoryId", "name");
 
     res.status(200).json({
       success: true,
@@ -24,15 +28,8 @@ exports.getCategoryProducts = async (req, res) => {
 
 exports.getProducts = async (req, res) => {
   try {
-    const {
-      id,
-      isFeatured,
-      isActive,
-      categoryId,
-      search,
-      page = 1,
-      limit,
-    } = req.query;
+    const userId = req.user;
+    const { id, isFeatured, categoryId, search, page = 1, limit } = req.query;
 
     const filter = { isActive: true }; // Default filter to only fetch active products
 

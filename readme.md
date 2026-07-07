@@ -11,3 +11,15 @@ badge.tsx(11, 7): The expected type comes from property 'variant' which is decla
 Type '{ open: boolean; onOpenChange: Dispatch<SetStateAction<boolean>>; title: string; description: string; onConfirm: () => Promise<void>; }' is not assignable to type 'IntrinsicAttributes'.
   Property 'open' does not exist on type 'IntrinsicAttributes'.ts(2322)
 
+tokens and id verification
+panel login checks
+[
+  roles delete
+  response handing not perfect
+]
+cart module
+order module place track etc
+zone checker
+franshise
+become a seller
+profile and setting like about contact etc

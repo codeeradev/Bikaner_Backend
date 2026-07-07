@@ -24,9 +24,6 @@ const bannerController = require("../controllers/bannerController");
 // POST login
 router.post("/auth/login", authController.login);
 
-// POST refresh token
-router.post("/auth/refresh", authController.refreshToken);
-
 // POST logout (requires auth)
 router.post("/auth/logout", authenticateToken, authController.logout);
 

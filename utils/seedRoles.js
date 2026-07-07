@@ -31,7 +31,25 @@ const seedRoles = async () => {
     await adminRole.save();
     console.log("✓ Admin role created");
 
-    // 2. Create Franchise role with limited permissions
+    // 2. Create User role (for app users - constRoleId: 1)
+    const userRole = new Role({
+      name: "User",
+      permissions: [], // App users don't need admin panel permissions
+      isActive: true
+    });
+    await userRole.save();
+    console.log("✓ User role created");
+
+    // 3. Create Seller role (for bulk buyers - constRoleId: 3)
+    const sellerRole = new Role({
+      name: "Seller",
+      permissions: [], // App sellers don't need admin panel permissions
+      isActive: true
+    });
+    await sellerRole.save();
+    console.log("✓ Seller role created");
+
+    // 4. Create Franchise role with limited permissions
     const franchisePermissions = [
       // Dashboard access
       PERMISSIONS.DASHBOARD_VIEW,
@@ -62,7 +80,7 @@ const seedRoles = async () => {
     await franchiseRole.save();
     console.log("✓ Franchise role created");
 
-    // 3. Create default Admin user (optional)
+    // 5. Create default Admin user (optional)
     const existingAdminUser = await User.findOne({ mobile: "9999999999" });
     
     if (!existingAdminUser) {
@@ -73,7 +91,8 @@ const seedRoles = async () => {
         email: "admin@bikanerbiscuit.com",
         password: "admin123", // TODO: Hash this password in production
         status: "active",
-        isBlocked: false
+        isBlocked: false,
+        constRoleId: 4 // Admin panel user
       });
       await adminUser.save();
       console.log("✓ Default admin user created");
@@ -89,6 +108,8 @@ const seedRoles = async () => {
       message: "Roles seeded successfully",
       roles: {
         admin: adminRole,
+        user: userRole,
+        seller: sellerRole,
         franchise: franchiseRole
       }
     };

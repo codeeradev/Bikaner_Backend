@@ -1,20 +1,97 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/users");
-const Role = require("../models/roles");
+const User = require("../../models/users");
+const Role = require("../../models/roles");
 
 /**
- * Generate JWT token for admin (expires in 1 day)
+ * Generate JWT token for app users (no expiration)
  */
 const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET || "your-secret-key", {
-    expiresIn: "1d", // Admin token expires in 1 day
-  });
+  return jwt.sign({ userId }, process.env.JWT_SECRET || "your-secret-key");
+  // No expiration for app users
 };
 
 /**
- * Login user
+ * Register new user (constRoleId: 1)
  */
-const login = async (req, res) => {
+exports.register = async (req, res) => {
+  try {
+    const { name, mobile, email, password } = req.body;
+
+    // Validation
+    if (!name || !mobile || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, mobile, and password are required",
+      });
+    }
+
+    // Check if mobile already exists
+    const existingUser = await User.findOne({ mobile });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "User with this mobile number already exists",
+      });
+    }
+
+    // Check if email already exists (if provided)
+    if (email) {
+      const existingEmail = await User.findOne({ email });
+      if (existingEmail) {
+        return res.status(400).json({
+          success: false,
+          message: "User with this email already exists",
+        });
+      }
+    }
+
+    // Create user (password should be hashed in production)
+    const user = new User({
+      roleId: null,
+      name,
+      mobile,
+      email: email || null,
+      password, // TODO: Hash password using bcrypt
+      constRoleId: 1, // User constant role ID
+      status: "active",
+    });
+
+    await user.save();
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    // Prepare user data (exclude password)
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      mobile: user.mobile,
+      role: "User",
+      constRoleId: 1,
+      status: user.status,
+    };
+
+    res.status(201).json({
+      success: true,
+      message: "Registration successful",
+      token,
+      user: userData,
+    });
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Registration failed",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Login user (constRoleId: 1 or 3)
+ */
+exports.login = async (req, res) => {
   try {
     const { mobile, email, password } = req.body;
 
@@ -37,8 +114,15 @@ const login = async (req, res) => {
       });
     }
 
+    // Check if user is app user (constRoleId: 1 or 3)
+    if (!user.constRoleId || (user.constRoleId !== 1 && user.constRoleId !== 3)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to access this app",
+      });
+    }
+
     // Check password (In production, use bcrypt.compare)
-    // const isPasswordValid = await bcrypt.compare(password, user.password);
     const isPasswordValid = password === user.password; // TODO: Implement bcrypt
 
     if (!isPasswordValid) {
@@ -52,7 +136,7 @@ const login = async (req, res) => {
     if (user.status !== "active") {
       return res.status(403).json({
         success: false,
-        message: "Your account is inactive. Please contact administrator.",
+        message: "Your account is inactive. Please contact support.",
       });
     }
 
@@ -60,26 +144,10 @@ const login = async (req, res) => {
     if (user.isBlocked) {
       return res.status(403).json({
         success: false,
-        message: "Your account has been blocked. Please contact administrator.",
+        message: "Your account has been blocked. Please contact support.",
       });
     }
 
-    // Check if role is active
-    if (!user.roleId || !user.roleId.isActive) {
-      return res.status(403).json({
-        success: false,
-        message: "Your role is inactive. Please contact administrator.",
-      });
-    }
-    
-    // Check if user is staff member (constRoleId: 4)
-    if (!user.constRoleId || user.constRoleId !== 4) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to access the admin panel.",
-      });
-    }
-    
     // Generate token
     const token = generateToken(user._id);
 
@@ -90,11 +158,11 @@ const login = async (req, res) => {
       email: user.email,
       mobile: user.mobile,
       profileImage: user.profileImage,
-      role: user.roleId.name,
-      roleId: user.roleId._id,
-      permissions: user.roleId.permissions || [],
+      role: user.roleId?.name || "User",
+      constRoleId: user.constRoleId,
       cityId: user.cityId,
-      zoneIds: user.zoneIds,
+      lat: user.lat,
+      lng: user.lng,
       status: user.status,
     };
 
@@ -115,41 +183,15 @@ const login = async (req, res) => {
 };
 
 /**
- * Logout user
- */
-const logout = async (req, res) => {
-  try {
-    // In a production app, you might want to:
-    // 1. Blacklist the token
-    // 2. Log the logout event
-
-    res.json({
-      success: true,
-      message: "Logout successful",
-    });
-  } catch (error) {
-    console.error("Logout error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Logout failed",
-      error: error.message,
-    });
-  }
-};
-
-/**
  * Get current user profile
  */
-const getProfile = async (req, res) => {
+exports.getProfile = async (req, res) => {
   try {
     const userId = req.userId;
 
     const user = await User.findById(userId)
-      .populate("roleId", "name permissions isActive")
       .populate("cityId", "name")
-      .populate("zoneIds", "name")
-      .populate("allowedCategories", "name")
-      .select("-password");
+      .select("-password -roleId -__v");
 
     if (!user) {
       return res.status(404).json({
@@ -175,10 +217,10 @@ const getProfile = async (req, res) => {
 /**
  * Update current user profile
  */
-const updateProfile = async (req, res) => {
+exports.updateProfile = async (req, res) => {
   try {
     const userId = req.userId;
-    const { name, email, mobile, currentPassword, newPassword } = req.body;
+    const { name, email, currentPassword, newPassword, lat, lng } = req.body;
 
     const user = await User.findById(userId);
 
@@ -194,30 +236,24 @@ const updateProfile = async (req, res) => {
 
     // Check email uniqueness if changing
     if (email !== undefined && email !== user.email) {
-      const existingEmail = await User.findOne({ email, _id: { $ne: userId } });
-      if (existingEmail) {
-        return res.status(400).json({
-          success: false,
-          message: "Email already in use",
+      if (email) {
+        const existingEmail = await User.findOne({
+          email,
+          _id: { $ne: userId },
         });
+        if (existingEmail) {
+          return res.status(400).json({
+            success: false,
+            message: "Email already in use",
+          });
+        }
       }
-      user.email = email;
+      user.email = email || null;
     }
 
-    // Check mobile uniqueness if changing
-    if (mobile && mobile !== user.mobile) {
-      const existingMobile = await User.findOne({
-        mobile,
-        _id: { $ne: userId },
-      });
-      if (existingMobile) {
-        return res.status(400).json({
-          success: false,
-          message: "Mobile number already in use",
-        });
-      }
-      user.mobile = mobile;
-    }
+    // Update location
+    if (lat !== undefined) user.lat = lat;
+    if (lng !== undefined) user.lng = lng;
 
     // Update password if provided
     if (currentPassword && newPassword) {
@@ -243,9 +279,8 @@ const updateProfile = async (req, res) => {
 
     // Return updated user without password
     const updatedUser = await User.findById(userId)
-      .populate("roleId", "name permissions isActive")
+      .populate("roleId", "name")
       .populate("cityId", "name")
-      .populate("zoneIds", "name")
       .select("-password");
 
     res.json({
@@ -261,11 +296,4 @@ const updateProfile = async (req, res) => {
       error: error.message,
     });
   }
-};
-
-module.exports = {
-  login,
-  logout,
-  getProfile,
-  updateProfile,
 };

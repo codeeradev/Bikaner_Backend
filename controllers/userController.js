@@ -363,11 +363,11 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // Prevent deleting Admin users
+    // Prevent deleting Admin and Franchise users
     if (user.roleId.name === SPECIAL_ROLES.ADMIN || user.roleId.name === SPECIAL_ROLES.FRANCHISE) {
       return res.status(403).json({
         success: false,
-        message: "Cannot delete Admin users"
+        message: `Cannot delete ${user.roleId.name} users`
       });
     }
 

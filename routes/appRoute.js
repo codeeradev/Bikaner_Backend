@@ -19,6 +19,7 @@ const appAuthController = require("../controllers/app/appAuthController");
 const appCartController = require("../controllers/app/appCartController");
 const appOrderController = require("../controllers/app/appOrderController");
 const appSellerController = require("../controllers/app/appSellerController");
+const appAddressController = require("../controllers/app/appAddressController");
 
 // ============= PUBLIC ROUTES (No Auth Required) =============
 // GET active banners
@@ -31,11 +32,11 @@ router.get("/categories", getActiveCategories);
 router.get("/zones", getActiveZones);
 
 // ============= AUTH ROUTES =============
-// POST register new user
-router.post("/auth/register", appAuthController.register);
-
-// POST login
+// POST send OTP (Step 1)
 router.post("/auth/login", appAuthController.login);
+
+// POST verify OTP and login/register (Step 2)
+router.post("/auth/verify-otp", appAuthController.verifyOTP);
 
 // ============= PROTECTED ROUTES (Auth Required) =============
 // GET current user profile
@@ -70,6 +71,25 @@ router.delete("/cart/:productId", authenticateToken, appCartController.removeFro
 // DELETE clear entire cart
 router.delete("/cart", authenticateToken, appCartController.clearCart);
 
+// ============= ADDRESS ROUTES (Auth Required) =============
+// GET all addresses for current user
+router.get("/addresses", authenticateToken, appAddressController.getAddresses);
+
+// GET single address by ID
+router.get("/addresses/:addressId", authenticateToken, appAddressController.getAddressById);
+
+// POST create new address
+router.post("/addresses", authenticateToken, appAddressController.createAddress);
+
+// PUT update address
+router.put("/addresses/:addressId", authenticateToken, appAddressController.updateAddress);
+
+// DELETE address
+router.delete("/addresses/:addressId", authenticateToken, appAddressController.deleteAddress);
+
+// PUT set address as default
+router.put("/addresses/:addressId/default", authenticateToken, appAddressController.setDefaultAddress);
+
 // ============= ORDER ROUTES (Auth Required) =============
 // POST create order from cart
 router.post("/orders", authenticateToken, appOrderController.createOrder);
@@ -90,5 +110,6 @@ router.post("/seller/become", authenticateToken, appSellerController.becomeSelle
 // GET bulk orders (seller only)
 router.get("/seller/bulk-orders", authenticateToken, appSellerController.getBulkOrders);
 
+router.post("/update-location", authenticateToken, appAddressController.updateLocation);
 module.exports = router;
 

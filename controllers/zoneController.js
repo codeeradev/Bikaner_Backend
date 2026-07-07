@@ -1,4 +1,5 @@
 const Zone = require("../models/zones");
+const User = require("../models/users");
 
 // Get all zones
 exports.getAllZones = async (req, res) => {
@@ -237,77 +238,6 @@ exports.toggleZoneStatus = async (req, res) => {
       message: "Error toggling zone status",
       error: error.message
     });
-  }
-};
-
-exports.updateLocation = async (req, res) => {
-  try {
-    const { id } = req.user; // get from token or body
-    const { latitude, longitude } = req.body;
-
-    if (!latitude || !longitude || !id) {
-      return res.status(400).json({ message: "Missing userId or coordinates" });
-    }
-
-    const user = await User.findById(id);
-
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
-      {
-        $set: {
-          lat: Number(latitude),
-          lng: Number(longitude),
-        },
-      },
-      { new: true },
-    );
-
-    // Get all user addresses
-    const addresses = await Address.find({ userId: id });
-    if (addresses.length > 0) {
-      // Compute nearest one using haversine distance
-      let nearestAddress = null;
-      let shortestDistance = Infinity;
-
-      addresses.forEach((addr) => {
-        if (addr.lat && addr.lng) {
-          const distance = haversine(
-            { lat: latitude, lon: longitude },
-            { lat: addr.lat, lon: addr.lng },
-          );
-          if (distance < shortestDistance) {
-            shortestDistance = distance;
-            nearestAddress = addr;
-          }
-        }
-      });
-
-      if (nearestAddress) {
-        await Address.updateMany({ userId: id }, { $set: { default: false } });
-        await Address.findByIdAndUpdate(
-          nearestAddress._id,
-          { $set: { default: true } },
-          { new: true },
-        );
-      }
-    }
-
-    if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    return res.status(200).json({
-      message: "Location updated successfully!",
-      location: {
-        lat: updatedUser.lat,
-        lng: updatedUser.lng,
-      },
-    });
-  } catch (error) {
-    console.error("❌ Location update error:", error);
-    return res
-      .status(500)
-      .json({ message: "Server error", error: error.message });
   }
 };
 

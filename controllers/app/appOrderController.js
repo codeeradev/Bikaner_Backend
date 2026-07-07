@@ -3,6 +3,7 @@ const Cart = require("../../models/cart");
 const Product = require("../../models/products");
 const User = require("../../models/users");
 const Zone = require("../../models/zones");
+const Address = require("../../models/address");
 
 /**
  * Create order from cart
@@ -10,18 +11,13 @@ const Zone = require("../../models/zones");
 exports.createOrder = async (req, res) => {
   try {
     const userId = req.userId;
-    const { deliveryAddress, notes } = req.body;
+    const { addressId, notes } = req.body;
 
     // Validation
-    if (
-      !deliveryAddress ||
-      !deliveryAddress.name ||
-      !deliveryAddress.mobile ||
-      !deliveryAddress.address
-    ) {
+    if (!addressId) {
       return res.status(400).json({
         success: false,
-        message: "Complete delivery address is required",
+        message: "Address ID is required",
       });
     }
 
@@ -31,6 +27,15 @@ exports.createOrder = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "User not found",
+      });
+    }
+
+    // Verify address belongs to user
+    const address = await Address.findOne({ _id: addressId, userId });
+    if (!address) {
+      return res.status(404).json({
+        success: false,
+        message: "Address not found or does not belong to you",
       });
     }
 
@@ -57,14 +62,9 @@ exports.createOrder = async (req, res) => {
     const isBulkOrder = cart.items.some((item) => item.priceType === "bulk");
     const orderType = isBulkOrder ? "bulk" : "normal";
 
-    // Calculate delivery charge if zone is provided
+    // Calculate delivery charge (you can implement zone-based logic here if needed)
     let deliveryCharge = 0;
-    if (deliveryAddress.zoneId) {
-      const zone = await Zone.findById(deliveryAddress.zoneId);
-      if (zone) {
-        deliveryCharge = zone.deliveryCharge || 0;
-      }
-    }
+    // Future: Get zone from address.city and calculate delivery charge
 
     // Prepare order items
     const orderItems = cart.items.map((item) => ({
@@ -89,7 +89,7 @@ exports.createOrder = async (req, res) => {
       deliveryCharge,
       grandTotal,
       orderType,
-      deliveryAddress,
+      addressId,
       notes: notes || "",
       orderStatus: "pending",
       paymentStatus: "pending",
@@ -104,8 +104,7 @@ exports.createOrder = async (req, res) => {
     // Populate order
     const populatedOrder = await Order.findById(order._id)
       .populate("items.productId", "name image sku")
-      .populate("deliveryAddress.cityId", "name")
-      .populate("deliveryAddress.zoneId", "name");
+      .populate("addressId");
 
     res.status(201).json({
       success: true,
@@ -148,8 +147,7 @@ exports.getOrders = async (req, res) => {
     // Fetch orders
     const orders = await Order.find(filter)
       .populate("items.productId", "name image sku")
-      .populate("deliveryAddress.cityId", "name")
-      .populate("deliveryAddress.zoneId", "name")
+      .populate("addressId")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -186,8 +184,7 @@ exports.getOrderById = async (req, res) => {
 
     const order = await Order.findOne({ _id: orderId, userId })
       .populate("items.productId", "name image sku")
-      .populate("deliveryAddress.cityId", "name")
-      .populate("deliveryAddress.zoneId", "name");
+      .populate("addressId");
 
     if (!order) {
       return res.status(404).json({

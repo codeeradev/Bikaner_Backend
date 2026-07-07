@@ -41,7 +41,6 @@ const orderSchema = new mongoose.Schema(
     orderNumber: {
       type: String,
       unique: true,
-      required: true,
     },
     items: [orderItemSchema],
     totalAmount: {
@@ -79,20 +78,10 @@ const orderSchema = new mongoose.Schema(
       ],
       default: "pending",
     },
-    deliveryAddress: {
-      name: String,
-      mobile: String,
-      address: String,
-      cityId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "cities",
-      },
-      zoneId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "zones",
-      },
-      lat: Number,
-      lng: Number,
+    addressId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "addresses",
+      required: true,
     },
     notes: String,
     cancelReason: String,
@@ -127,7 +116,6 @@ orderSchema.pre("save", async function (next) {
 
     this.orderNumber = `ORD${year}${month}${day}${sequence.toString().padStart(4, "0")}`;
   }
-  next();
 });
 
 module.exports = mongoose.model("orders", orderSchema);

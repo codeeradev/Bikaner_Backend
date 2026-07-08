@@ -2,7 +2,11 @@ const jwt = require("jsonwebtoken");
 const User = require("../../models/users");
 const Role = require("../../models/roles");
 const OTP = require("../../models/otp");
-const { generateOTP, sendOTPEmail, sendOTPSMS } = require("../../utils/otpService");
+const {
+  generateOTP,
+  sendOTPEmail,
+  sendOTPSMS,
+} = require("../../utils/otpService");
 
 /**
  * Generate JWT token for app users (no expiration)
@@ -151,7 +155,7 @@ exports.verifyOTP = async (req, res) => {
     if (!user) {
       // Create new user
       user = new User({
-        name: name || (type === "email" ? identifier.split("@")[0] : `User_${identifier.slice(-4)}`),
+        name: name,
         email: type === "email" ? identifier : "",
         mobile: type === "mobile" ? identifier : "",
         constRoleId: 1,
@@ -231,9 +235,15 @@ exports.getProfile = async (req, res) => {
       });
     }
 
+    // Check if profile is completed
+    const profileCompleted = !!(user.name && user.name.trim() !== "");
+
     res.json({
       success: true,
-      data: user,
+      data: {
+        ...user.toObject(),
+        profileCompleted,
+      },
     });
   } catch (error) {
     console.error("Error fetching profile:", error);

@@ -10,6 +10,8 @@ const {getActiveBanners} = require("../controllers/appBannerController");
 
 const { getCategoryProducts, getProducts, getProductById } = require("../controllers/appProductController");
 
+const settingsController = require("../controllers/settingsController");
+
 const {
   authenticateToken,
 } = require("../middleware/auth");
@@ -30,6 +32,9 @@ router.get("/categories", getActiveCategories);
 
 // GET active zones
 router.get("/zones", getActiveZones);
+
+// GET public settings (terms, privacy policy, etc.)
+router.get("/settings", settingsController.getPublicSettings);
 
 // ============= AUTH ROUTES =============
 // POST send OTP (Step 1)

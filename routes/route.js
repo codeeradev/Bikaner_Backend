@@ -19,6 +19,7 @@ const cityController = require("../controllers/cityController");
 const zoneController = require("../controllers/zoneController");
 const productController = require("../controllers/productController");
 const bannerController = require("../controllers/bannerController");
+const settingsController = require("../controllers/settingsController");
 
 // ============= PUBLIC AUTH ROUTES =============
 // POST login
@@ -385,6 +386,24 @@ router.delete(
   authenticateToken,
   checkPermission(PERMISSIONS.BANNERS_DELETE),
   bannerController.deleteBanner,
+);
+
+// ============= SETTINGS ROUTES (Admin Only) =============
+// GET site settings
+router.get(
+  "/settings",
+  authenticateToken,
+  requireAdmin,
+  settingsController.getSettings,
+);
+
+// PUT update site settings
+router.put(
+  "/settings",
+  authenticateToken,
+  requireAdmin,
+  upload.single("siteLogo"),
+  settingsController.updateSettings,
 );
 
 module.exports = router;

@@ -154,7 +154,6 @@ exports.verifyOTP = async (req, res) => {
         name: name || (type === "email" ? identifier.split("@")[0] : `User_${identifier.slice(-4)}`),
         email: type === "email" ? identifier : "",
         mobile: type === "mobile" ? identifier : "",
-        roleId: userRole._id,
         constRoleId: 1,
         status: "active",
       });

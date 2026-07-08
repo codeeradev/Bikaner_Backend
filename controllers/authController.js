@@ -158,9 +158,15 @@ const getProfile = async (req, res) => {
       });
     }
 
+    // Check if profile is completed
+    const profileCompleted = !!(user.name && user.name.trim() !== "");
+
     res.json({
       success: true,
-      data: user,
+      data: {
+        ...user.toObject(),
+        profileCompleted,
+      },
     });
   } catch (error) {
     console.error("Error fetching profile:", error);

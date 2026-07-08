@@ -55,7 +55,7 @@ router.put("/auth/profile", authenticateToken, appAuthController.updateProfile);
 router.get("/products", authenticateToken, getProducts);
 
 // GET products by category (token optional for pricing)
-router.get("/products/category/:categoryId", authenticateToken, getCategoryProducts);
+router.get("/products/:categoryId", authenticateToken, getCategoryProducts);
 
 // GET single product by ID (token optional for pricing)
 router.get("/products/:productId", authenticateToken, getProductById);

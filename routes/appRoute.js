@@ -1,6 +1,7 @@
 const express = require("express");
 
 const router = express.Router();
+const upload = require("../middleware/upload");
 
 const { getActiveCategories } = require("../controllers/categoryController");
 
@@ -48,7 +49,7 @@ router.post("/auth/verify-otp", appAuthController.verifyOTP);
 router.get("/auth/profile", authenticateToken, appAuthController.getProfile);
 
 // PUT update profile
-router.put("/auth/profile", authenticateToken, appAuthController.updateProfile);
+router.put("/auth/profile", authenticateToken, upload.single("profileImage"), appAuthController.updateProfile);
 
 // ============= PRODUCT ROUTES =============
 // GET products with optional filters (token optional for pricing)

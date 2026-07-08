@@ -263,6 +263,7 @@ exports.updateProfile = async (req, res) => {
     const userId = req.userId;
     const { name, email, lat, lng } = req.body;
 
+    console.log(req.body)
     const user = await User.findById(userId);
 
     if (!user) {
@@ -298,7 +299,7 @@ exports.updateProfile = async (req, res) => {
 
     // Update profile image if uploaded
     if (req.file) {
-      user.profileImage = `/assets/users/${req.file.filename}`;
+      user.profileImage = `/assets/uploads/${req.file.filename}`;
     }
 
     await user.save();

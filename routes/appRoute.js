@@ -23,6 +23,7 @@ const appCartController = require("../controllers/app/appCartController");
 const appOrderController = require("../controllers/app/appOrderController");
 const appSellerController = require("../controllers/app/appSellerController");
 const appAddressController = require("../controllers/app/appAddressController");
+const razorpayWebhook = require("../controllers/app/razorpayWebhook");
 
 // ============= PUBLIC ROUTES (No Auth Required) =============
 // GET active banners
@@ -97,7 +98,13 @@ router.delete("/addresses/:addressId", authenticateToken, appAddressController.d
 router.put("/addresses/:addressId/default", authenticateToken, appAddressController.setDefaultAddress);
 
 // ============= ORDER ROUTES (Auth Required) =============
-// POST create order from cart
+// POST initiate payment (create Razorpay order)
+router.post("/orders/initiate-payment", authenticateToken, appOrderController.initiatePayment);
+
+// POST verify payment
+router.post("/orders/verify-payment", authenticateToken, appOrderController.verifyPayment);
+
+// POST create order from cart (legacy - for COD)
 router.post("/orders", authenticateToken, appOrderController.createOrder);
 
 // GET user's orders
@@ -108,6 +115,10 @@ router.get("/orders/:orderId", authenticateToken, appOrderController.getOrderByI
 
 // PUT cancel order
 router.put("/orders/:orderId/cancel", authenticateToken, appOrderController.cancelOrder);
+
+// ============= RAZORPAY WEBHOOK (No Auth) =============
+// POST Razorpay webhook
+router.post("/webhooks/razorpay", razorpayWebhook.handleWebhook);
 
 // ============= SELLER ROUTES (Auth Required) =============
 // POST request to become a seller

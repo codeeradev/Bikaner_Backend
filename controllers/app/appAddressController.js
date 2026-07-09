@@ -12,8 +12,6 @@ exports.updateLocation = async (req, res) => {
       return res.status(400).json({ message: "Missing userId or coordinates" });
     }
 
-    const user = await User.findById(id);
-
     const updatedUser = await User.findByIdAndUpdate(
       id,
       {
@@ -24,6 +22,24 @@ exports.updateLocation = async (req, res) => {
       },
       { new: true },
     );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    const settings = await Settings.findById("site-settings");
+    const zones = await Zone.find({ isActive: true });
+
+    const result = checkUserZone(updatedUser, zones, settings);
+
+    if (!result) {
+      return res.status(400).json({
+        success: false,
+        message: "Service not available in your area.",
+      });
+    }
 
     // Get all user addresses
     const addresses = await Address.find({ userId: id });
@@ -80,7 +96,10 @@ exports.getAddresses = async (req, res) => {
   try {
     const userId = req.userId;
 
-    const addresses = await Address.find({ userId }).sort({ isDefault: -1, createdAt: -1 });
+    const addresses = await Address.find({ userId }).sort({
+      isDefault: -1,
+      createdAt: -1,
+    });
 
     res.json({
       success: true,
@@ -235,7 +254,8 @@ exports.updateAddress = async (req, res) => {
     // Update fields
     if (name !== undefined) existingAddress.name = name;
     if (mobile !== undefined) existingAddress.mobile = mobile;
-    if (alternateNumber !== undefined) existingAddress.alternateNumber = alternateNumber;
+    if (alternateNumber !== undefined)
+      existingAddress.alternateNumber = alternateNumber;
     if (address !== undefined) existingAddress.address = address;
     if (house_No !== undefined) existingAddress.house_No = house_No;
     if (floor !== undefined) existingAddress.floor = floor;
@@ -282,7 +302,9 @@ exports.deleteAddress = async (req, res) => {
 
     // If deleted address was default, set another as default
     if (address.isDefault) {
-      const nextAddress = await Address.findOne({ userId }).sort({ createdAt: -1 });
+      const nextAddress = await Address.findOne({ userId }).sort({
+        createdAt: -1,
+      });
       if (nextAddress) {
         nextAddress.isDefault = true;
         await nextAddress.save();

@@ -74,6 +74,20 @@ const settingsSchema = new mongoose.Schema(
       default: "We are currently under maintenance. Please check back soon.",
     },
     
+    // Razorpay Payment Gateway Settings
+    razorpayKeyId: {
+      type: String,
+      default: "",
+    },
+    razorpayKeySecret: {
+      type: String,
+      default: "",
+    },
+    razorpayWebhookSecret: {
+      type: String,
+      default: "",
+    },
+    
     // Single document pattern - only one settings document exists
     _id: {
       type: String,

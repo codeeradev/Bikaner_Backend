@@ -1,10 +1,42 @@
-function isWithinZone(userLat, userLng, zone, zoneWindowConfig = null, nowMoment = null) {
-  const activeRange = getActiveZoneRange(zone, zoneWindowConfig, nowMoment);
-  if (!activeRange || !zone?.lat || !zone?.lng) return false;
+const haversine = require("haversine-distance");
 
-  const userLocation = { lat: userLat, lon: userLng };
-  const zoneLocation = { lat: zone.lat, lon: zone.lng };
-  const distance = haversine(userLocation, zoneLocation);
+const checkUserZone = (user, zones, settings = {}) => {
+    const range = settings.range || 5000; // meters
 
-  return distance <= activeRange;
-}
+    if (!user?.lat || !user?.lng) {
+        return null;
+    }
+
+    let matchedZone = null;
+    let shortestDistance = Infinity;
+
+    for (const zone of zones) {
+        const distance = haversine(
+            {
+                lat: user.lat,
+                lng: user.lng,
+            },
+            {
+                lat: zone.lat,
+                lng: zone.lng,
+            }
+        );
+
+        // Inside range & nearest zone
+        if (distance <= range && distance < shortestDistance) {
+            shortestDistance = distance;
+            matchedZone = zone;
+        }
+    }
+
+    if (!matchedZone) {
+        return null;
+    }
+
+    return {
+        zone: matchedZone,
+        distance: shortestDistance, // meters
+    };
+};
+
+module.exports = checkUserZone;

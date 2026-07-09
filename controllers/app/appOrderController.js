@@ -4,6 +4,248 @@ const Product = require("../../models/products");
 const User = require("../../models/users");
 const Zone = require("../../models/zones");
 const Address = require("../../models/address");
+const {
+  getRazorpayCredentials,
+  createRazorpayOrder,
+  verifyPaymentSignature,
+} = require("../../utils/razorpay");
+
+/**
+ * Initiate payment - Create Razorpay order
+ */
+exports.initiatePayment = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { addressId, notes, paymentMethod = "razorpay" } = req.body;
+
+    // Validation
+    if (!addressId) {
+      return res.status(400).json({
+        success: false,
+        message: "Address ID is required",
+      });
+    }
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Verify address belongs to user
+    const address = await Address.findOne({ _id: addressId, userId });
+    if (!address) {
+      return res.status(404).json({
+        success: false,
+        message: "Address not found or does not belong to you",
+      });
+    }
+
+    // Get cart
+    const cart = await Cart.findOne({ userId }).populate("items.productId");
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cart is empty",
+      });
+    }
+
+    // Validate all products are active
+    for (const item of cart.items) {
+      if (!item.productId.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: `Product "${item.productId.name}" is no longer available`,
+        });
+      }
+    }
+
+    // Determine order type
+    const isBulkOrder = cart.items.some((item) => item.priceType === "bulk");
+    const orderType = isBulkOrder ? "bulk" : "normal";
+
+    // Calculate delivery charge
+    let deliveryCharge = 0;
+
+    // Prepare order items
+    const orderItems = cart.items.map((item) => ({
+      productId: item.productId._id,
+      name: item.productId.name,
+      image: item.productId.image,
+      quantity: item.quantity,
+      price: item.price,
+      priceType: item.priceType,
+      subtotal: item.price * item.quantity,
+    }));
+
+    // Calculate totals
+    const totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const grandTotal = totalAmount + deliveryCharge;
+
+    // Create order
+    const order = new Order({
+      userId,
+      items: orderItems,
+      totalAmount,
+      deliveryCharge,
+      grandTotal,
+      orderType,
+      addressId,
+      notes: notes || "",
+      paymentMethod,
+      orderStatus: "pending",
+      paymentStatus: "pending",
+    });
+
+    await order.save();
+
+    // If payment method is COD, clear cart and return order
+    if (paymentMethod === "cod") {
+      cart.items = [];
+      await cart.save();
+
+      const populatedOrder = await Order.findById(order._id)
+        .populate("items.productId", "name image sku")
+        .populate("addressId");
+
+      return res.status(201).json({
+        success: true,
+        message: "Order created successfully (COD)",
+        data: populatedOrder,
+      });
+    }
+
+    // For Razorpay payment, create Razorpay order
+    try {
+      const razorpayOrder = await createRazorpayOrder(
+        grandTotal,
+        "INR",
+        order._id.toString()
+      );
+
+      // Update order with Razorpay order ID
+      order.razorpayOrderId = razorpayOrder.id;
+      await order.save();
+
+      // Get Razorpay key for frontend
+      const credentials = await getRazorpayCredentials();
+
+      res.status(201).json({
+        success: true,
+        message: "Payment initiated successfully",
+        data: {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          amount: grandTotal,
+          razorpayOrderId: razorpayOrder.id,
+          razorpayKeyId: credentials.keyId,
+          currency: "INR",
+        },
+      });
+    } catch (razorpayError) {
+      // If Razorpay order creation fails, delete the order
+      await Order.findByIdAndDelete(order._id);
+      throw razorpayError;
+    }
+  } catch (error) {
+    console.error("Error initiating payment:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to initiate payment",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Verify payment and complete order
+ */
+exports.verifyPayment = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const {
+      orderId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+    } = req.body;
+
+    // Validation
+    if (!orderId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing payment verification parameters",
+      });
+    }
+
+    // Find order
+    const order = await Order.findOne({ _id: orderId, userId });
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Check if already verified
+    if (order.paymentStatus === "paid") {
+      return res.json({
+        success: true,
+        message: "Payment already verified",
+        data: order,
+      });
+    }
+
+    // Verify signature
+    const isValid = await verifyPaymentSignature(
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature
+    );
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment verification failed - invalid signature",
+      });
+    }
+
+    // Update order with payment details
+    order.razorpayPaymentId = razorpayPaymentId;
+    order.razorpaySignature = razorpaySignature;
+    order.paymentStatus = "paid";
+    order.transactionDate = new Date();
+    await order.save();
+
+    // Clear cart
+    const cart = await Cart.findOne({ userId });
+    if (cart) {
+      cart.items = [];
+      await cart.save();
+    }
+
+    // Populate and return order
+    const populatedOrder = await Order.findById(order._id)
+      .populate("items.productId", "name image sku")
+      .populate("addressId");
+
+    res.json({
+      success: true,
+      message: "Payment verified successfully",
+      data: populatedOrder,
+    });
+  } catch (error) {
+    console.error("Error verifying payment:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to verify payment",
+      error: error.message,
+    });
+  }
+};
 
 /**
  * Create order from cart

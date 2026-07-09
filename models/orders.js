@@ -83,6 +83,26 @@ const orderSchema = new mongoose.Schema(
       ref: "addresses",
       required: true,
     },
+    paymentMethod: {
+      type: String,
+      enum: ["razorpay", "cod"],
+      default: "cod",
+    },
+    razorpayOrderId: {
+      type: String,
+      default: "",
+    },
+    razorpayPaymentId: {
+      type: String,
+      default: "",
+    },
+    razorpaySignature: {
+      type: String,
+      default: "",
+    },
+    transactionDate: {
+      type: Date,
+    },
     notes: String,
     cancelReason: String,
     cancelledAt: Date,

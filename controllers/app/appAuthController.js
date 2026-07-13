@@ -308,7 +308,7 @@ exports.updateProfile = async (req, res) => {
     const updatedUser = await User.findById(userId)
       .populate("roleId", "name")
       .populate("cityId", "name")
-      .select("-password");
+      .select("-password -roleId -__v -zoneIds -allowedCategories -isBlocked -constRoleId -createdAt -customPricingEnabled");
 
     res.json({
       success: true,

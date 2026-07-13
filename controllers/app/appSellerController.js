@@ -1,5 +1,5 @@
 const User = require("../../models/users");
-const Role = require("../../models/roles");
+const SellerApplication = require("../../models/sellerApplications");
 
 /**
  * Request to become a seller
@@ -44,12 +44,15 @@ exports.becomeSeller = async (req, res) => {
       });
     }
 
-    // Find Seller role
-    const sellerRole = await Role.findOne({ name: "Seller" });
-    if (!sellerRole) {
-      return res.status(500).json({
+    const existingApplication = await SellerApplication.findOne({
+      userId,
+      status: "pending",
+    });
+
+    if (existingApplication) {
+      return res.status(400).json({
         success: false,
-        message: "Seller role not configured in system",
+        message: "Your seller application is already pending review",
       });
     }
 
@@ -81,30 +84,24 @@ exports.becomeSeller = async (req, res) => {
       }
     }
 
-    // Update user to seller
-    user.roleId = sellerRole._id;
-    user.constRoleId = 3; // Seller constant role ID
-    user.name = name;
-    user.mobile = mobile;
-    user.email = email || user.email;
-    user.cityId = cityId;
-    
-    // Store additional seller info
-    // Note: If you need separate fields for seller-specific data, add them to the User model
-    // For now, we're using existing fields
-    
-    await user.save();
+    const application = await SellerApplication.create({
+      userId,
+      name,
+      mobile,
+      email: email || "",
+      gst: gst || "",
+      address,
+      cityId,
+    });
 
-    // Get updated user data
-    const updatedUser = await User.findById(userId)
-      .populate("roleId", "name")
-      .populate("cityId", "name")
-      .select("-password");
+    const populatedApplication = await SellerApplication.findById(application._id)
+      .populate("userId", "name email mobile")
+      .populate("cityId", "name");
 
     res.json({
       success: true,
-      message: "You are now a seller! You can now place bulk orders.",
-      data: updatedUser,
+      message: "Seller application submitted successfully",
+      data: populatedApplication,
     });
   } catch (error) {
     console.error("Error becoming seller:", error);

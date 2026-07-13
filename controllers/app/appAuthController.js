@@ -226,9 +226,9 @@ exports.getProfile = async (req, res) => {
 
     const user = await User.findById(userId)
       .populate("cityId", "name")
-      .select("-password -roleId -__v");
+      .select("-password -roleId -__v -zoneIds -allowedCategories -isBlocked -constRoleId -createdAt -customPricingEnabled");
 
-    if (!user) {
+      if (!user) {
       return res.status(404).json({
         success: false,
         message: "User not found",

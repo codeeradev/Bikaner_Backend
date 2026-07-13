@@ -38,6 +38,7 @@ exports.updateSettings = async (req, res) => {
       siteDescription,
       contactEmail,
       contactPhone,
+      range,
       termsAndConditions,
       privacyPolicy,
       aboutUs,
@@ -64,6 +65,22 @@ exports.updateSettings = async (req, res) => {
     if (siteDescription !== undefined) settings.siteDescription = siteDescription;
     if (contactEmail !== undefined) settings.contactEmail = contactEmail;
     if (contactPhone !== undefined) settings.contactPhone = contactPhone;
+    if (range !== undefined) {
+      const parsedRange = Number(range);
+
+      if (
+        !Number.isInteger(parsedRange) ||
+        parsedRange < 100 ||
+        parsedRange > 100000
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Delivery radius must be a whole number between 100 and 100000 meters",
+        });
+      }
+
+      settings.range = parsedRange;
+    }
     if (termsAndConditions !== undefined) settings.termsAndConditions = termsAndConditions;
     if (privacyPolicy !== undefined) settings.privacyPolicy = privacyPolicy;
     if (aboutUs !== undefined) settings.aboutUs = aboutUs;
@@ -104,7 +121,7 @@ exports.updateSettings = async (req, res) => {
 exports.getPublicSettings = async (req, res) => {
   try {
     let settings = await Settings.findById("site-settings").select(
-      "siteTitle siteLogo siteDescription contactEmail contactPhone termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl"
+      "siteTitle siteLogo siteDescription contactEmail contactPhone range termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl"
     );
 
     // Create default settings if none exist

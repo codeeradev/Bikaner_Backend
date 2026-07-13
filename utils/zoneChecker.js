@@ -1,7 +1,11 @@
 const haversine = require("haversine-distance");
 
 const checkUserZone = (user, zones, settings = {}) => {
-    const range = settings.range || 5000; // meters
+    const configuredRange = Number(settings.range);
+    const range =
+        Number.isFinite(configuredRange) && configuredRange > 0
+            ? configuredRange
+            : 5000; // meters
 
     if (!user?.lat || !user?.lng) {
         return null;

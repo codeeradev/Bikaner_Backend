@@ -18,6 +18,7 @@ const MODULES = {
   ORDERS: 'orders',
   NORMAL_ORDERS: 'normalOrders',
   BULK_ORDERS: 'bulkOrders',
+  SELLER_APPROVALS: 'sellerApprovals',
   FRANCHISE: 'franchise',
   FRANCHISE_REQUESTS: 'franchiseRequests',
   REGISTERED_FRANCHISES: 'registeredFranchises',
@@ -96,6 +97,10 @@ const PERMISSIONS = {
   // Bulk Orders
   BULK_ORDERS_VIEW: createPermission(MODULES.BULK_ORDERS, ACTIONS.VIEW),
   BULK_ORDERS_EDIT: createPermission(MODULES.BULK_ORDERS, ACTIONS.EDIT),
+
+  // Seller Approvals
+  SELLER_APPROVALS_VIEW: createPermission(MODULES.SELLER_APPROVALS, ACTIONS.VIEW),
+  SELLER_APPROVALS_MANAGE: createPermission(MODULES.SELLER_APPROVALS, ACTIONS.MANAGE),
 
   // Franchise
   FRANCHISE_VIEW: createPermission(MODULES.FRANCHISE, ACTIONS.VIEW),

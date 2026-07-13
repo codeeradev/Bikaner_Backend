@@ -20,6 +20,8 @@ const zoneController = require("../controllers/zoneController");
 const productController = require("../controllers/productController");
 const bannerController = require("../controllers/bannerController");
 const settingsController = require("../controllers/settingsController");
+const orderController = require("../controllers/orderController");
+const sellerApplicationController = require("../controllers/sellerApplicationController");
 
 // ============= PUBLIC AUTH ROUTES =============
 // POST login
@@ -145,6 +147,77 @@ router.patch(
   authenticateToken,
   checkPermission(PERMISSIONS.USERS_EDIT),
   userController.toggleUserStatus,
+);
+
+// ============= ORDER ROUTES =============
+router.get(
+  "/orders",
+  authenticateToken,
+  checkPermission(PERMISSIONS.ORDERS_VIEW),
+  orderController.getAllOrders,
+);
+
+router.get(
+  "/orders/normal",
+  authenticateToken,
+  checkPermission(PERMISSIONS.NORMAL_ORDERS_VIEW),
+  (req, res) => {
+    req.query.orderType = "normal";
+    return orderController.getAllOrders(req, res);
+  },
+);
+
+router.get(
+  "/orders/bulk",
+  authenticateToken,
+  checkPermission(PERMISSIONS.BULK_ORDERS_VIEW),
+  (req, res) => {
+    req.query.orderType = "bulk";
+    return orderController.getAllOrders(req, res);
+  },
+);
+
+router.get(
+  "/orders/:orderId",
+  authenticateToken,
+  checkPermission(PERMISSIONS.ORDERS_VIEW),
+  orderController.getOrderDetails,
+);
+
+router.put(
+  "/orders/:orderId/status",
+  authenticateToken,
+  checkPermission(PERMISSIONS.ORDERS_EDIT),
+  orderController.updateOrderStatus,
+);
+
+router.put(
+  "/orders/:orderId/cancel",
+  authenticateToken,
+  checkPermission(PERMISSIONS.ORDERS_EDIT),
+  orderController.cancelOrder,
+);
+
+// ============= SELLER APPROVAL ROUTES =============
+router.get(
+  "/seller-applications",
+  authenticateToken,
+  checkPermission(PERMISSIONS.SELLER_APPROVALS_VIEW),
+  sellerApplicationController.getSellerApplications,
+);
+
+router.put(
+  "/seller-applications/:id/approve",
+  authenticateToken,
+  checkPermission(PERMISSIONS.SELLER_APPROVALS_MANAGE),
+  sellerApplicationController.approveSellerApplication,
+);
+
+router.put(
+  "/seller-applications/:id/reject",
+  authenticateToken,
+  checkPermission(PERMISSIONS.SELLER_APPROVALS_MANAGE),
+  sellerApplicationController.rejectSellerApplication,
 );
 
 // ============= CATEGORY ROUTES =============

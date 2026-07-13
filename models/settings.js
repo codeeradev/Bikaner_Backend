@@ -23,6 +23,12 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    range: {
+      type: Number,
+      default: 5000,
+      min: 100,
+      max: 100000,
+    },
     
     // Legal Documents
     termsAndConditions: {

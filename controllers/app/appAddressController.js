@@ -1,23 +1,32 @@
 const Address = require("../../models/address");
+const Settings = require("../../models/settings");
 const Zone = require("../../models/zones");
 const User = require("../../models/users");
+const checkUserZone = require("../../utils/zoneChecker");
 const haversine = require("haversine-distance");
 
 exports.updateLocation = async (req, res) => {
   try {
-    const { id } = req.user; // get from token or body
+    const id = req.userId || req.user?._id || req.user?.id;
     const { latitude, longitude } = req.body;
 
-    if (!latitude || !longitude || !id) {
+    if (latitude === undefined || longitude === undefined || !id) {
       return res.status(400).json({ message: "Missing userId or coordinates" });
+    }
+
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ message: "Invalid coordinates" });
     }
 
     const updatedUser = await User.findByIdAndUpdate(
       id,
       {
         $set: {
-          lat: Number(latitude),
-          lng: Number(longitude),
+          lat,
+          lng,
         },
       },
       { new: true },
@@ -41,6 +50,10 @@ exports.updateLocation = async (req, res) => {
       });
     }
 
+    updatedUser.cityId = result.zone.cityId;
+    updatedUser.zoneIds = [result.zone._id];
+    await updatedUser.save();
+
     // Get all user addresses
     const addresses = await Address.find({ userId: id });
     if (addresses.length > 0) {
@@ -51,7 +64,7 @@ exports.updateLocation = async (req, res) => {
       addresses.forEach((addr) => {
         if (addr.lat && addr.lng) {
           const distance = haversine(
-            { lat: latitude, lon: longitude },
+            { lat, lon: lng },
             { lat: addr.lat, lon: addr.lng },
           );
           if (distance < shortestDistance) {
@@ -62,10 +75,10 @@ exports.updateLocation = async (req, res) => {
       });
 
       if (nearestAddress) {
-        await Address.updateMany({ userId: id }, { $set: { default: false } });
+        await Address.updateMany({ userId: id }, { $set: { isDefault: false } });
         await Address.findByIdAndUpdate(
           nearestAddress._id,
-          { $set: { default: true } },
+          { $set: { isDefault: true } },
           { new: true },
         );
       }
@@ -81,6 +94,9 @@ exports.updateLocation = async (req, res) => {
         lat: updatedUser.lat,
         lng: updatedUser.lng,
       },
+      zone: result.zone,
+      cityId: updatedUser.cityId,
+      zoneIds: updatedUser.zoneIds,
     });
   } catch (error) {
     console.error("❌ Location update error:", error);

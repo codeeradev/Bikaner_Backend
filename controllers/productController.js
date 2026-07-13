@@ -94,6 +94,8 @@ exports.createProduct = async (req, res) => {
       minBulkQty,
       isFeatured,
       isActive,
+      nutritionValues,
+      ingredients,
     } = req.body;
 
     const image = req.files?.image
@@ -123,6 +125,22 @@ exports.createProduct = async (req, res) => {
       });
     }
 
+    // Parse nutritionValues if provided as JSON string (FormData serialization)
+    let parsedNutritionValues;
+    if (nutritionValues) {
+      parsedNutritionValues = typeof nutritionValues === 'string' 
+        ? JSON.parse(nutritionValues) 
+        : nutritionValues;
+    }
+
+    // Parse ingredients if provided as JSON string (FormData serialization)
+    let parsedIngredients;
+    if (ingredients) {
+      parsedIngredients = typeof ingredients === 'string'
+        ? JSON.parse(ingredients)
+        : ingredients;
+    }
+
     const product = new Product({
       categoryId,
       name,
@@ -139,6 +157,8 @@ exports.createProduct = async (req, res) => {
       minBulkQty,
       isFeatured,
       isActive,
+      nutritionValues: parsedNutritionValues,
+      ingredients: parsedIngredients,
     });
 
     await product.save();
@@ -177,6 +197,8 @@ exports.updateProduct = async (req, res) => {
       minBulkQty,
       isFeatured,
       isActive,
+      nutritionValues,
+      ingredients,
     } = req.body;
 
     const product = await Product.findById(req.params.id);
@@ -221,6 +243,32 @@ exports.updateProduct = async (req, res) => {
     if (minBulkQty !== undefined) product.minBulkQty = minBulkQty;
     if (isFeatured !== undefined) product.isFeatured = isFeatured;
     if (isActive !== undefined) product.isActive = isActive;
+
+    // Handle nutritionValues update
+    if (nutritionValues !== undefined) {
+      // Parse JSON string if provided
+      const parsedNutritionValues = typeof nutritionValues === 'string'
+        ? JSON.parse(nutritionValues)
+        : nutritionValues;
+      
+      // Empty object means remove data, set to undefined
+      product.nutritionValues = Object.keys(parsedNutritionValues).length === 0
+        ? undefined
+        : parsedNutritionValues;
+    }
+
+    // Handle ingredients update
+    if (ingredients !== undefined) {
+      // Parse JSON string if provided
+      const parsedIngredients = typeof ingredients === 'string'
+        ? JSON.parse(ingredients)
+        : ingredients;
+      
+      // Empty array means remove data, set to undefined
+      product.ingredients = parsedIngredients.length === 0
+        ? undefined
+        : parsedIngredients;
+    }
 
     await product.save();
     await product.populate("categoryId", "name");

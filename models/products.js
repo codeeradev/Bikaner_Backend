@@ -55,6 +55,26 @@ const productSchema = new mongoose.Schema(
     isActive:{
         type:Boolean,
         default:true
+    },
+
+    nutritionValues:{
+        type:Map,
+        of:new mongoose.Schema({
+            value:{
+                type:Number,
+                required:true
+            },
+            unit:{
+                type:String,
+                required:true
+            }
+        }, { _id:false }),
+        default:undefined
+    },
+
+    ingredients:{
+        type:[String],
+        default:undefined
     }
 },
 {

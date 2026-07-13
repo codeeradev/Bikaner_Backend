@@ -104,9 +104,6 @@ router.post("/orders/initiate-payment", authenticateToken, appOrderController.in
 // POST verify payment
 router.post("/orders/verify-payment", authenticateToken, appOrderController.verifyPayment);
 
-// POST create order from cart (legacy - for COD)
-router.post("/orders", authenticateToken, appOrderController.createOrder);
-
 // GET user's orders
 router.get("/orders", authenticateToken, appOrderController.getOrders);
 

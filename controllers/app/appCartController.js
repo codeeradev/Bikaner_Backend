@@ -5,6 +5,25 @@ const User = require("../../models/users");
 /**
  * Get user's cart
  */
+
+const transformCart = (cart) => {
+  const cartObj = cart.toObject();
+
+  cartObj.items = cartObj.items.map((item) => {
+    if (item.productId) {
+      item.productId.displayPrice = item.price;
+      item.productId.priceType = item.priceType;
+
+      delete item.productId.sellingPrice;
+      delete item.productId.bulkPrice;
+    }
+
+    return item;
+  });
+
+  return cartObj;
+};
+
 exports.getCart = async (req, res) => {
   try {
     const userId = req.userId;
@@ -22,7 +41,7 @@ exports.getCart = async (req, res) => {
 
     res.json({
       success: true,
-      data: cart,
+      data: transformCart(cart),
     });
   } catch (error) {
     console.error("Error fetching cart:", error);

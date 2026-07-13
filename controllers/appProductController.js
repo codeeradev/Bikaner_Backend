@@ -19,6 +19,9 @@ const transformProductForUser = (product, user) => {
     productObj.priceType = "selling";
   }
   
+  delete productObj.sellingPrice;
+  delete productObj.bulkPrice;
+
   return productObj;
 };
 

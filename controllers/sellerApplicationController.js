@@ -81,14 +81,6 @@ exports.approveSellerApplication = async (req, res) => {
       });
     }
 
-    const sellerRole = await Role.findOne({ name: "Seller" });
-    if (!sellerRole) {
-      return res.status(500).json({
-        success: false,
-        message: "Seller role not configured in system",
-      });
-    }
-
     const existingMobile = await User.findOne({
       mobile: application.mobile,
       _id: { $ne: application.userId },
@@ -113,7 +105,6 @@ exports.approveSellerApplication = async (req, res) => {
       }
     }
 
-    user.roleId = sellerRole._id;
     user.constRoleId = 3;
     user.name = application.name;
     user.mobile = application.mobile;

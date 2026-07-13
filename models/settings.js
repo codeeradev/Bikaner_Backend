@@ -29,7 +29,7 @@ const settingsSchema = new mongoose.Schema(
       min: 100,
       max: 100000,
     },
-    
+
     // Legal Documents
     termsAndConditions: {
       type: String,
@@ -51,7 +51,7 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    
+
     // Social Media Links
     facebookUrl: {
       type: String,
@@ -69,7 +69,7 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    
+
     // App Settings
     maintenanceMode: {
       type: Boolean,
@@ -79,7 +79,7 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: "We are currently under maintenance. Please check back soon.",
     },
-    
+
     // Razorpay Payment Gateway Settings
     razorpayKeyId: {
       type: String,
@@ -93,7 +93,8 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    
+    globalDeliveryCharges: { type: Number, default: 30 },
+    platformFee: { type: Number, default: 5 },
     // Single document pattern - only one settings document exists
     _id: {
       type: String,
@@ -102,7 +103,7 @@ const settingsSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("settings", settingsSchema);

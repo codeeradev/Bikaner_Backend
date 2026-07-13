@@ -1,6 +1,8 @@
 const Cart = require("../../models/cart");
 const Product = require("../../models/products");
 const User = require("../../models/users");
+const Zone = require("../../models/zones");
+const Settings = require("../../models/settings");
 
 /**
  * Get user's cart
@@ -39,9 +41,38 @@ exports.getCart = async (req, res) => {
       await cart.save();
     }
 
+    // Get user to fetch zoneId
+    const user = await User.findById(userId).select("zoneIds");
+    
+    // Get settings for global delivery charge and platform fee
+    const settings = await Settings.findById("site-settings").select("globalDeliveryCharges platformFee");
+    
+    // Initialize delivery charge with global default
+    let deliveryCharge = settings?.globalDeliveryCharges || 0;
+    
+    // If user has a zone, try to get zone-specific delivery charge
+    if (user && user.zoneIds && user.zoneIds.length > 0) {
+      const zone = await Zone.findById(user.zoneIds[0]).select("deliveryCharge");
+      if (zone && zone.deliveryCharge !== undefined && zone.deliveryCharge !== null) {
+        deliveryCharge = zone.deliveryCharge;
+      }
+    }
+    
+    // Calculate platform fee
+    const platformFeePercentage = settings?.platformFee || 0;
+    const subtotal = cart.totalAmount || 0;
+    const platformFee = Math.round((subtotal * platformFeePercentage) / 100);
+
+    // Transform cart and add fees
+    const cartData = transformCart(cart);
+    cartData.deliveryCharge = deliveryCharge;
+    cartData.platformFee = platformFee;
+    cartData.subtotal = subtotal;
+    cartData.grandTotal = subtotal + deliveryCharge + platformFee;
+
     res.json({
       success: true,
-      data: transformCart(cart),
+      data: cartData,
     });
   } catch (error) {
     console.error("Error fetching cart:", error);

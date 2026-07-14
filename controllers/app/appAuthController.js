@@ -226,7 +226,7 @@ exports.getProfile = async (req, res) => {
 
     const user = await User.findById(userId)
       .populate("cityId", "name")
-      .select("-password -roleId -__v -zoneIds -allowedCategories -isBlocked -constRoleId -createdAt -customPricingEnabled");
+      .select("-password -roleId -__v -zoneId -allowedCategories -isBlocked -constRoleId -createdAt -customPricingEnabled");
 
       if (!user) {
       return res.status(404).json({
@@ -308,7 +308,7 @@ exports.updateProfile = async (req, res) => {
     const updatedUser = await User.findById(userId)
       .populate("roleId", "name")
       .populate("cityId", "name")
-      .select("-password -roleId -__v -zoneIds -allowedCategories -isBlocked -constRoleId -createdAt -customPricingEnabled");
+      .select("-password -roleId -__v -zoneId -allowedCategories -isBlocked -constRoleId -createdAt -customPricingEnabled");
 
     res.json({
       success: true,

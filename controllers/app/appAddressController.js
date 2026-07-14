@@ -51,7 +51,7 @@ exports.updateLocation = async (req, res) => {
     }
 
     updatedUser.cityId = result.zone.cityId;
-    updatedUser.zoneIds = [result.zone._id];
+    updatedUser.zoneId = result.zone._id;
     await updatedUser.save();
 
     // Get all user addresses
@@ -96,7 +96,7 @@ exports.updateLocation = async (req, res) => {
       },
       zone: result.zone,
       cityId: updatedUser.cityId,
-      zoneIds: updatedUser.zoneIds,
+      zoneId: updatedUser.zoneId,
     });
   } catch (error) {
     console.error("❌ Location update error:", error);

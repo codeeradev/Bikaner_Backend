@@ -35,7 +35,7 @@ const getAllUsers = async (req, res) => {
     const users = await User.find(filter)
       .populate('roleId', 'name permissions isActive')
       .populate('cityId', 'name')
-      .populate('zoneIds', 'name')
+      .populate('zoneId', 'name')
       .select('-password')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -73,7 +73,7 @@ const getUserById = async (req, res) => {
     const user = await User.findById(id)
       .populate('roleId', 'name permissions isActive')
       .populate('cityId', 'name')
-      .populate('zoneIds', 'name')
+      .populate('zoneId', 'name')
       .populate('allowedCategories', 'name')
       .select('-password');
 
@@ -110,7 +110,7 @@ const createUser = async (req, res) => {
       email,
       password,
       cityId,
-      zoneIds,
+      zoneId,
       allowedCategories,
       customPricingEnabled,
       status = 'active'
@@ -180,7 +180,7 @@ const createUser = async (req, res) => {
       email: email || null,
       password, // TODO: Hash password using bcrypt
       cityId: cityId || null,
-      zoneIds: zoneIds || [],
+      zoneId: zoneId || null,
       allowedCategories: allowedCategories || [],
       customPricingEnabled: customPricingEnabled || false,
       status,
@@ -194,7 +194,7 @@ const createUser = async (req, res) => {
     const populatedUser = await User.findById(user._id)
       .populate('roleId', 'name permissions isActive')
       .populate('cityId', 'name')
-      .populate('zoneIds', 'name')
+      .populate('zoneId', 'name')
       .select('-password');
 
     res.status(201).json({
@@ -225,7 +225,7 @@ const updateUser = async (req, res) => {
       email,
       password,
       cityId,
-      zoneIds,
+      zoneId,
       allowedCategories,
       customPricingEnabled,
       status
@@ -313,7 +313,7 @@ const updateUser = async (req, res) => {
     }
 
     if (cityId !== undefined) user.cityId = cityId || null;
-    if (zoneIds !== undefined) user.zoneIds = zoneIds || [];
+    if (zoneId !== undefined) user.zoneId = zoneId || null;
     if (allowedCategories !== undefined) user.allowedCategories = allowedCategories || [];
     if (customPricingEnabled !== undefined) user.customPricingEnabled = customPricingEnabled;
     if (status !== undefined) user.status = status;
@@ -329,7 +329,7 @@ const updateUser = async (req, res) => {
     const populatedUser = await User.findById(user._id)
       .populate('roleId', 'name permissions isActive')
       .populate('cityId', 'name')
-      .populate('zoneIds', 'name')
+      .populate('zoneId', 'name')
       .select('-password');
 
     res.json({

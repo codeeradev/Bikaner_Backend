@@ -94,7 +94,7 @@ const login = async (req, res) => {
       roleId: user.roleId._id,
       permissions: user.roleId.permissions || [],
       cityId: user.cityId,
-      zoneIds: user.zoneIds,
+      zoneId: user.zoneId,
       status: user.status,
     };
 
@@ -147,7 +147,7 @@ const getProfile = async (req, res) => {
     const user = await User.findById(userId)
       .populate("roleId", "name permissions isActive")
       .populate("cityId", "name")
-      .populate("zoneIds", "name")
+      .populate("zoneId", "name")
       .populate("allowedCategories", "name")
       .select("-password");
 
@@ -245,7 +245,7 @@ const updateProfile = async (req, res) => {
     const updatedUser = await User.findById(userId)
       .populate("roleId", "name permissions isActive")
       .populate("cityId", "name")
-      .populate("zoneIds", "name")
+      .populate("zoneId", "name")
       .select("-password");
 
     res.json({

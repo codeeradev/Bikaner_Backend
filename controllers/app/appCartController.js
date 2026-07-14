@@ -42,7 +42,7 @@ exports.getCart = async (req, res) => {
     }
 
     // Get user to fetch zoneId
-    const user = await User.findById(userId).select("zoneIds");
+    const user = await User.findById(userId).select("zoneId");
     
     // Get settings for global delivery charge and platform fee
     const settings = await Settings.findById("site-settings").select("globalDeliveryCharges platformFee");
@@ -51,8 +51,8 @@ exports.getCart = async (req, res) => {
     let deliveryCharge = settings?.globalDeliveryCharges || 0;
     
     // If user has a zone, try to get zone-specific delivery charge
-    if (user && user.zoneIds && user.zoneIds.length > 0) {
-      const zone = await Zone.findById(user.zoneIds[0]).select("deliveryCharge");
+    if (user && user.zoneId) {
+      const zone = await Zone.findById(user.zoneId).select("deliveryCharge");
       if (zone && zone.deliveryCharge !== undefined && zone.deliveryCharge !== null) {
         deliveryCharge = zone.deliveryCharge;
       }

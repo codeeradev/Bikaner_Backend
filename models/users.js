@@ -36,12 +36,10 @@ const userSchema = new mongoose.Schema(
         ref:"cities"
     },
 
-    zoneIds:[
-        {
-            type:mongoose.Schema.Types.ObjectId,
-            ref:"zones"
-        }
-    ],
+    zoneId:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"zones"
+    },
 
     allowedCategories:[
         {

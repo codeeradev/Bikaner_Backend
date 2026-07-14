@@ -36,7 +36,6 @@ exports.initiatePayment = async (req, res) => {
     }
     // Verify address belongs to user
     const address = await Address.findOne({ _id: addressId });
-    console.log("address",address)
     if (!address) {
       return res.status(404).json({
         success: false,
@@ -73,8 +72,6 @@ exports.initiatePayment = async (req, res) => {
     // Prepare order items
     const orderItems = cart.items.map((item) => ({
       productId: item.productId._id,
-      name: item.productId.name,
-      image: item.productId.image,
       quantity: item.quantity,
       price: item.price,
       priceType: item.priceType,

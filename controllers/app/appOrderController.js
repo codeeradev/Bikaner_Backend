@@ -79,8 +79,36 @@ exports.initiatePayment = async (req, res) => {
     }));
 
     // Calculate totals
-    const totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const grandTotal = totalAmount + deliveryCharge;
+    const totalAmount = orderItems.reduce(
+      (sum, item) => sum + item.subtotal,
+      0,
+    );
+    // Get user zone
+    const user = await User.findById(userId).select("zoneId");
+
+    // Get settings
+    const settings = await Settings.findById("site-settings").select(
+      "globalDeliveryCharges platformFee",
+    );
+
+    // Default delivery charge
+    let deliveryCharge = settings?.globalDeliveryCharges || 0;
+
+    // Zone-specific delivery charge
+    if (user?.zoneId) {
+      const zone = await Zone.findById(user.zoneId).select("deliveryCharge");
+
+      if (zone?.deliveryCharge != null) {
+        deliveryCharge = zone.deliveryCharge;
+      }
+    }
+
+    // Platform fee
+    const platformFeePercentage = settings?.platformFee || 0;
+    const platformFee = Math.round((totalAmount * platformFeePercentage) / 100);
+
+    // Final payable amount
+    const grandTotal = totalAmount + deliveryCharge + platformFee;
 
     // Create order
     const order = new Order({
@@ -88,6 +116,7 @@ exports.initiatePayment = async (req, res) => {
       items: orderItems,
       totalAmount,
       deliveryCharge,
+      platformFee,
       grandTotal,
       orderType,
       addressId,
@@ -120,7 +149,7 @@ exports.initiatePayment = async (req, res) => {
       const razorpayOrder = await createRazorpayOrder(
         grandTotal,
         "INR",
-        order._id.toString()
+        order._id.toString(),
       );
 
       // Update order with Razorpay order ID
@@ -162,15 +191,16 @@ exports.initiatePayment = async (req, res) => {
 exports.verifyPayment = async (req, res) => {
   try {
     const userId = req.userId;
-    const {
-      orderId,
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature,
-    } = req.body;
+    const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } =
+      req.body;
 
     // Validation
-    if (!orderId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    if (
+      !orderId ||
+      !razorpayOrderId ||
+      !razorpayPaymentId ||
+      !razorpaySignature
+    ) {
       return res.status(400).json({
         success: false,
         message: "Missing payment verification parameters",
@@ -199,7 +229,7 @@ exports.verifyPayment = async (req, res) => {
     const isValid = await verifyPaymentSignature(
       razorpayOrderId,
       razorpayPaymentId,
-      razorpaySignature
+      razorpaySignature,
     );
 
     if (!isValid) {
@@ -348,9 +378,7 @@ exports.cancelOrder = async (req, res) => {
     }
 
     // Check if order can be cancelled
-    if (
-      ["delivered", "cancelled", "shipped"].includes(order.orderStatus)
-    ) {
+    if (["delivered", "cancelled", "shipped"].includes(order.orderStatus)) {
       return res.status(400).json({
         success: false,
         message: `Cannot cancel order with status: ${order.orderStatus}`,

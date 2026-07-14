@@ -46,6 +46,7 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    platformFee:Number,
     grandTotal: {
       type: Number,
       required: true,

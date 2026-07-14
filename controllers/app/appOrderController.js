@@ -68,9 +68,6 @@ exports.initiatePayment = async (req, res) => {
     const isBulkOrder = cart.items.some((item) => item.priceType === "bulk");
     const orderType = isBulkOrder ? "bulk" : "normal";
 
-    // Calculate delivery charge
-    let deliveryCharge = 0;
-
     // Prepare order items
     const orderItems = cart.items.map((item) => ({
       productId: item.productId._id,
@@ -85,8 +82,6 @@ exports.initiatePayment = async (req, res) => {
       (sum, item) => sum + item.subtotal,
       0,
     );
-    // Get user zone
-    const user = await User.findById(userId).select("zoneId");
 
     // Get settings
     const settings = await Settings.findById("site-settings").select(

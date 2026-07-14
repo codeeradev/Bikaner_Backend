@@ -4,6 +4,8 @@ const Product = require("../../models/products");
 const User = require("../../models/users");
 const Zone = require("../../models/zones");
 const Address = require("../../models/address");
+const Settings = require("../../models/settings");
+
 const {
   getRazorpayCredentials,
   createRazorpayOrder,

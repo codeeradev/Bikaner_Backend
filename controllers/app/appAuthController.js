@@ -113,7 +113,7 @@ exports.login = async (req, res) => {
  */
 exports.verifyOTP = async (req, res) => {
   try {
-    const { identifier, type, otp, name } = req.body; // name is optional for new users
+    const { identifier, type, otp, name, fcmToken } = req.body; // name is optional for new users
 
     // Validation
     if (!identifier || !type || !otp) {
@@ -160,6 +160,7 @@ exports.verifyOTP = async (req, res) => {
         mobile: type === "mobile" ? identifier : "",
         constRoleId: 1,
         status: "active",
+        fcmToken: fcmToken || null, // Save FCM token if provided
       });
 
       await user.save();
@@ -190,6 +191,10 @@ exports.verifyOTP = async (req, res) => {
       }
     }
 
+    if(fcmToken!==undefined && fcmToken!==null){
+      user.fcmToken = fcmToken;
+      await user.save();
+    }
     // Generate token
     const token = generateToken(user._id);
 

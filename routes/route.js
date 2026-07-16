@@ -22,6 +22,7 @@ const bannerController = require("../controllers/bannerController");
 const settingsController = require("../controllers/settingsController");
 const orderController = require("../controllers/orderController");
 const sellerApplicationController = require("../controllers/sellerApplicationController");
+const notificationController = require("../controllers/notificationController");
 
 // ============= PUBLIC AUTH ROUTES =============
 // POST login
@@ -187,15 +188,43 @@ router.get(
 router.put(
   "/orders/:orderId/status",
   authenticateToken,
-  checkPermission(PERMISSIONS.ORDERS_EDIT),
+  checkPermission(
+    [
+      PERMISSIONS.ORDERS_EDIT,
+      PERMISSIONS.NORMAL_ORDERS_EDIT,
+      PERMISSIONS.BULK_ORDERS_EDIT,
+    ],
+    "OR",
+  ),
   orderController.updateOrderStatus,
 );
 
 router.put(
   "/orders/:orderId/cancel",
   authenticateToken,
-  checkPermission(PERMISSIONS.ORDERS_EDIT),
+  checkPermission(
+    [
+      PERMISSIONS.ORDERS_EDIT,
+      PERMISSIONS.NORMAL_ORDERS_EDIT,
+      PERMISSIONS.BULK_ORDERS_EDIT,
+    ],
+    "OR",
+  ),
   orderController.cancelOrder,
+);
+
+// PUT mark notification as read
+router.put(
+  "/notifications/:notificationId/read",
+  authenticateToken,
+  notificationController.markAsRead,
+);
+
+// DELETE notification
+router.delete(
+  "/notifications/:notificationId",
+  authenticateToken,
+  notificationController.deleteNotification,
 );
 
 // ============= SELLER APPROVAL ROUTES =============

@@ -24,6 +24,7 @@ const appOrderController = require("../controllers/app/appOrderController");
 const appSellerController = require("../controllers/app/appSellerController");
 const appAddressController = require("../controllers/app/appAddressController");
 const razorpayWebhook = require("../controllers/app/razorpayWebhook");
+const notificationController = require("../controllers/notificationController");
 
 // ============= PUBLIC ROUTES (No Auth Required) =============
 // GET active banners
@@ -125,5 +126,13 @@ router.post("/seller/become", authenticateToken, appSellerController.becomeSelle
 router.get("/seller/bulk-orders", authenticateToken, appSellerController.getBulkOrders);
 
 router.post("/update-location", authenticateToken, appAddressController.updateLocation);
+
+// ============= NOTIFICATION ROUTES =============
+// GET user notifications with pagination
+router.get(
+  "/notifications",
+  authenticateToken,
+  notificationController.getUserNotifications,
+);
 module.exports = router;
 

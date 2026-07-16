@@ -67,6 +67,7 @@ const userSchema = new mongoose.Schema(
         default:false
     },
     constRoleId:Number, // This field is used to store the constant role ID for reference
+    fcmToken:String,
 },
 {
     timestamps:true

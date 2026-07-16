@@ -1,5 +1,21 @@
 const Order = require("../models/orders");
 const User = require("../models/users");
+const {
+  sendNotificationWithPersistence,
+} = require("./notificationController");
+
+const canEditOrderType = (role, orderType) => {
+  if (!role) return false;
+  if (role.name === "Admin") return true;
+
+  const permissions = role.permissions || [];
+  const typePermission =
+    orderType === "bulk" ? "bulkOrders:edit" : "normalOrders:edit";
+
+  return (
+    permissions.includes("orders:edit") || permissions.includes(typePermission)
+  );
+};
 
 /**
  * Get all orders (Admin only)
@@ -99,23 +115,26 @@ exports.getOrderDetails = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { orderStatus } = req.body;
+    const { orderStatus, cancelReason } = req.body;
 
-    // Validation
-    const validStatuses = [
-      "pending",
-      "confirmed",
-      "processing",
-      "packed",
-      "shipped",
-      "delivered",
-      "cancelled",
-    ];
+    // Validation - Only 3 statuses allowed
+    const validStatuses = ["accepted", "cancelled", "delivered"];
 
     if (!validStatuses.includes(orderStatus)) {
       return res.status(400).json({
         success: false,
         message: "Invalid order status",
+      });
+    }
+
+    // Validate cancel reason for cancelled status
+    if (
+      orderStatus === "cancelled" &&
+      (!cancelReason || cancelReason.trim() === "")
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Cancel reason is required",
       });
     }
 
@@ -128,7 +147,14 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
-    // Prevent status update for delivered or cancelled orders
+    if (!canEditOrderType(req.role, order.orderType)) {
+      return res.status(403).json({
+        success: false,
+        message: `You don't have permission to update ${order.orderType} orders`,
+      });
+    }
+
+    // Prevent status update for delivered or cancelled orders (terminal states)
     if (["delivered", "cancelled"].includes(order.orderStatus)) {
       return res.status(400).json({
         success: false,
@@ -138,7 +164,30 @@ exports.updateOrderStatus = async (req, res) => {
 
     // Update status
     order.orderStatus = orderStatus;
+
+    // Set cancel reason and timestamp if cancelling
+    if (orderStatus === "cancelled") {
+      order.cancelReason = cancelReason;
+      order.cancelledAt = new Date();
+    }
+
     await order.save();
+
+    // Get user for notification
+    const user = await User.findById(order.userId);
+
+    // Send notification with persistence (creates DB record + sends FCM)
+    try {
+      await sendNotificationWithPersistence(
+        user,
+        order,
+        orderStatus,
+        cancelReason,
+      );
+    } catch (notificationError) {
+      console.error("⚠️ Notification creation failed:", notificationError);
+      // Continue - order is already updated
+    }
 
     // Populate and return
     const populatedOrder = await Order.findById(order._id)
@@ -175,6 +224,13 @@ exports.cancelOrder = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Order not found",
+      });
+    }
+
+    if (!canEditOrderType(req.role, order.orderType)) {
+      return res.status(403).json({
+        success: false,
+        message: `You don't have permission to update ${order.orderType} orders`,
       });
     }
 
@@ -255,7 +311,8 @@ exports.getOrderStats = async (req, res) => {
       },
     ]);
 
-    const totalRevenue = revenueData.length > 0 ? revenueData[0].totalRevenue : 0;
+    const totalRevenue =
+      revenueData.length > 0 ? revenueData[0].totalRevenue : 0;
 
     res.json({
       success: true,

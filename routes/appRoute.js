@@ -7,15 +7,17 @@ const { getActiveCategories } = require("../controllers/categoryController");
 
 const { getActiveZones } = require("../controllers/zoneController");
 
-const {getActiveBanners} = require("../controllers/appBannerController");
+const { getActiveBanners } = require("../controllers/appBannerController");
 
-const { getCategoryProducts, getProducts, getProductById } = require("../controllers/appProductController");
+const {
+  getCategoryProducts,
+  getProducts,
+  getProductById,
+} = require("../controllers/appProductController");
 
 const settingsController = require("../controllers/settingsController");
 
-const {
-  authenticateToken,
-} = require("../middleware/auth");
+const { authenticateToken } = require("../middleware/auth");
 
 // Import app controllers
 const appAuthController = require("../controllers/app/appAuthController");
@@ -51,7 +53,12 @@ router.post("/auth/verify-otp", appAuthController.verifyOTP);
 router.get("/auth/profile", authenticateToken, appAuthController.getProfile);
 
 // PUT update profile
-router.put("/auth/profile", authenticateToken, upload.single("profileImage"), appAuthController.updateProfile);
+router.put(
+  "/auth/profile",
+  authenticateToken,
+  upload.single("profileImage"),
+  appAuthController.updateProfile,
+);
 
 // ============= PRODUCT ROUTES =============
 // GET products with optional filters (token optional for pricing)
@@ -74,7 +81,11 @@ router.post("/cart", authenticateToken, appCartController.addToCart);
 router.put("/cart", authenticateToken, appCartController.updateCartItem);
 
 // DELETE remove item from cart
-router.delete("/cart/:productId", authenticateToken, appCartController.removeFromCart);
+router.delete(
+  "/cart/:productId",
+  authenticateToken,
+  appCartController.removeFromCart,
+);
 
 // DELETE clear entire cart
 router.delete("/cart", authenticateToken, appCartController.clearCart);
@@ -84,35 +95,71 @@ router.delete("/cart", authenticateToken, appCartController.clearCart);
 router.get("/addresses", authenticateToken, appAddressController.getAddresses);
 
 // GET single address by ID
-router.get("/addresses/:addressId", authenticateToken, appAddressController.getAddressById);
+router.get(
+  "/addresses/:addressId",
+  authenticateToken,
+  appAddressController.getAddressById,
+);
 
 // POST create new address
-router.post("/addresses", authenticateToken, appAddressController.createAddress);
+router.post(
+  "/addresses",
+  authenticateToken,
+  appAddressController.createAddress,
+);
 
 // PUT update address
-router.put("/addresses/:addressId", authenticateToken, appAddressController.updateAddress);
+router.put(
+  "/addresses/:addressId",
+  authenticateToken,
+  appAddressController.updateAddress,
+);
 
 // DELETE address
-router.delete("/addresses/:addressId", authenticateToken, appAddressController.deleteAddress);
+router.delete(
+  "/addresses/:addressId",
+  authenticateToken,
+  appAddressController.deleteAddress,
+);
 
 // PUT set address as default
-router.put("/addresses/:addressId/default", authenticateToken, appAddressController.setDefaultAddress);
+router.put(
+  "/addresses/:addressId/default",
+  authenticateToken,
+  appAddressController.setDefaultAddress,
+);
 
 // ============= ORDER ROUTES (Auth Required) =============
 // POST initiate payment (create Razorpay order)
-router.post("/orders/initiate-payment", authenticateToken, appOrderController.initiatePayment);
+router.post(
+  "/orders/initiate-payment",
+  authenticateToken,
+  appOrderController.initiatePayment,
+);
 
 // POST verify payment
-router.post("/orders/verify-payment", authenticateToken, appOrderController.verifyPayment);
+router.post(
+  "/orders/verify-payment",
+  authenticateToken,
+  appOrderController.verifyPayment,
+);
 
 // GET user's orders
 router.get("/orders", authenticateToken, appOrderController.getOrders);
 
 // GET single order details
-router.get("/orders/:orderId", authenticateToken, appOrderController.getOrderById);
+router.get(
+  "/orders/:orderId",
+  authenticateToken,
+  appOrderController.getOrderById,
+);
 
 // PUT cancel order
-router.put("/orders/:orderId/cancel", authenticateToken, appOrderController.cancelOrder);
+router.put(
+  "/orders/:orderId/cancel",
+  authenticateToken,
+  appOrderController.cancelOrder,
+);
 
 // ============= RAZORPAY WEBHOOK (No Auth) =============
 // POST Razorpay webhook
@@ -120,12 +167,24 @@ router.post("/webhooks/razorpay", razorpayWebhook.handleWebhook);
 
 // ============= SELLER ROUTES (Auth Required) =============
 // POST request to become a seller
-router.post("/seller/become", authenticateToken, appSellerController.becomeSeller);
+router.post(
+  "/seller/become",
+  authenticateToken,
+  appSellerController.becomeSeller,
+);
 
 // GET bulk orders (seller only)
-router.get("/seller/bulk-orders", authenticateToken, appSellerController.getBulkOrders);
+router.get(
+  "/seller/bulk-orders",
+  authenticateToken,
+  appSellerController.getBulkOrders,
+);
 
-router.post("/update-location", authenticateToken, appAddressController.updateLocation);
+router.post(
+  "/update-location",
+  authenticateToken,
+  appAddressController.updateLocation,
+);
 
 // ============= NOTIFICATION ROUTES =============
 // GET user notifications with pagination
@@ -134,5 +193,18 @@ router.get(
   authenticateToken,
   notificationController.getUserNotifications,
 );
-module.exports = router;
 
+// PUT mark notification as read
+router.put(
+  "/notifications/read",
+  authenticateToken,
+  notificationController.markAsRead,
+);
+
+// DELETE notification
+router.delete(
+  "/notifications/:notificationId",
+  authenticateToken,
+  notificationController.deleteNotification,
+);
+module.exports = router;

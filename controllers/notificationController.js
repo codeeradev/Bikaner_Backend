@@ -49,11 +49,15 @@ exports.sendNotificationWithPersistence = async (
   user,
   order,
   status,
-  cancelReason
+  cancelReason,
 ) => {
   try {
     // Build notification data
-    const { title, message } = buildNotificationData(order, status, cancelReason);
+    const { title, message } = buildNotificationData(
+      order,
+      status,
+      cancelReason,
+    );
 
     // Create notification record in database
     const notification = await exports.createNotification({
@@ -80,17 +84,17 @@ exports.sendNotificationWithPersistence = async (
               orderNumber: order.orderNumber,
               orderStatus: status,
             },
-            "default"
+            "default",
           ),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("FCM timeout")), 5000)
+            setTimeout(() => reject(new Error("FCM timeout")), 5000),
           ),
         ]);
         console.log("✅ FCM notification sent successfully");
       } catch (fcmError) {
         console.warn(
           "⚠️ FCM notification failed but continuing:",
-          fcmError.message
+          fcmError.message,
         );
         // Continue execution - database record persists
       }
@@ -181,43 +185,30 @@ exports.getUserNotifications = async (req, res) => {
  * Mark a notification as read
  * Requires authentication - userId extracted from JWT token
  */
-exports.markAsRead = async (req, res) => {
+exports.markAllAsRead = async (req, res) => {
   try {
-    const userId = req.userId; // Set by auth middleware
-    const { notificationId } = req.params;
+    const userId = req.userId;
 
-    // Find notification and verify ownership
-    const notification = await Notification.findById(notificationId);
-
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: "Notification not found",
-      });
-    }
-
-    // Ensure user can only mark their own notifications as read
-    if (notification.userId.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized to update this notification",
-      });
-    }
-
-    // Update read status
-    notification.read = true;
-    await notification.save();
+    const result = await Notification.updateMany(
+      {
+        userId,
+        read: false,
+      },
+      {
+        $set: { read: true },
+      },
+    );
 
     res.json({
       success: true,
-      message: "Notification marked as read",
-      data: notification,
+      message: "All notifications marked as read",
+      modifiedCount: result.modifiedCount,
     });
   } catch (error) {
-    console.error("Error marking notification as read:", error);
+    console.error("Error marking notifications as read:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to mark notification as read",
+      message: "Failed to mark notifications as read",
       error: error.message,
     });
   }

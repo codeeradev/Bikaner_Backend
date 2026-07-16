@@ -198,7 +198,7 @@ router.get(
 router.put(
   "/notifications/read",
   authenticateToken,
-  notificationController.markAsRead,
+  notificationController.markAllAsRead,
 );
 
 // DELETE notification
@@ -207,4 +207,5 @@ router.delete(
   authenticateToken,
   notificationController.deleteNotification,
 );
+
 module.exports = router;

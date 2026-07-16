@@ -4,9 +4,9 @@ const path = require("path");
 const fs = require("fs");
 
 const keyPath =
-  process.env.NODE_ENV === "production"
-    ? "/etc/secrets/bikaner.json"
-    : path.join(__dirname, "bikaner.json");
+  // process.env.NODE_ENV === "production"
+  //   ? "/etc/secrets/bikaner.json"
+    path.join(__dirname, "bikaner.json");
 
 const keyFile = JSON.parse(fs.readFileSync(keyPath, "utf8"));
 

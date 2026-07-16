@@ -1,5 +1,5 @@
 const express = require("express");
-// const http = require("http");
+const http = require("http");
 const path = require("path");
 require("dotenv").config();
 const connectDb = require("./database");
@@ -15,7 +15,7 @@ app.use(express.json());
 // Serve static files from assets directory
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
-// const server = http.createServer(app);
+const server = http.createServer(app);
 
 const routes = require("./routes/route");
 const appRoutes = require("./routes/appRoute");
@@ -41,7 +41,7 @@ const startServer = async () => {
     const PORT = process.env.PORT || 9020;
     const host = process.env.HOST || "localhost";
     
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`\n🚀 Server running at http://${host}:${PORT}`);
       console.log(`\n✅ Server is ready to accept requests!`);
     });

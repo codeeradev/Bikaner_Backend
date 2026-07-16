@@ -7,18 +7,18 @@ const mongoose = require("mongoose");
  * Transform product with role-based pricing
  */
 const transformProductForUser = (product, user) => {
-  const productObj = product.toObject ? product.toObject() : product;
-  
-  // If user is seller (constRoleId: 3), show bulk price
+  const productObj = product.toObject({
+    flattenMaps: true,
+  });
+
   if (user && user.constRoleId === 3) {
     productObj.displayPrice = productObj.bulkPrice;
     productObj.priceType = "bulk";
   } else {
-    // Regular user or no user, show selling price
     productObj.displayPrice = productObj.sellingPrice;
     productObj.priceType = "selling";
   }
-  
+
   delete productObj.sellingPrice;
   delete productObj.bulkPrice;
 

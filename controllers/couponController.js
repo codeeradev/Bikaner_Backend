@@ -21,7 +21,8 @@ const couponPayload = (body) => {
     if (body[field] !== undefined) payload[field] = body[field];
   });
 
-  if (payload.code !== undefined) payload.code = normalizeCouponCode(payload.code);
+  if (payload.code !== undefined)
+    payload.code = normalizeCouponCode(payload.code);
   if (payload.value !== undefined) payload.value = Number(payload.value);
   if (payload.minOrderAmount !== undefined) {
     payload.minOrderAmount = Number(payload.minOrderAmount);
@@ -33,13 +34,20 @@ const couponPayload = (body) => {
 const validateCouponPayload = (payload, isCreate = false) => {
   if (isCreate && !payload.code) return "Coupon code is required";
   if (isCreate && !payload.type) return "Coupon type is required";
-  if (isCreate && payload.value === undefined) return "Coupon value is required";
+  if (isCreate && payload.value === undefined)
+    return "Coupon value is required";
 
-  if (payload.type !== undefined && !["percentage", "flat"].includes(payload.type)) {
+  if (
+    payload.type !== undefined &&
+    !["percentage", "flat"].includes(payload.type)
+  ) {
     return "Coupon type must be percentage or flat";
   }
 
-  if (payload.value !== undefined && (!Number.isFinite(payload.value) || payload.value < 0)) {
+  if (
+    payload.value !== undefined &&
+    (!Number.isFinite(payload.value) || payload.value < 0)
+  ) {
     return "Coupon value must be a positive number";
   }
 
@@ -259,6 +267,11 @@ exports.applyCoupon = async (req, res) => {
       couponCode: code,
     });
 
+    console.log(totals.coupon._id, totals.coupon.code)
+    cart.couponId = totals.coupon._id;
+    cart.couponCode = totals.coupon.code;
+    await cart.save();
+
     res.json({
       success: true,
       message: "Coupon applied successfully",
@@ -284,6 +297,36 @@ exports.applyCoupon = async (req, res) => {
     res.status(error.statusCode || 500).json({
       success: false,
       message: error.statusCode ? error.message : "Failed to apply coupon",
+      error: error.message,
+    });
+  }
+};
+
+exports.removeCoupon = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const cart = await Cart.findOne({ userId });
+
+    if (!cart || !cart.couponId) {
+      return res.status(400).json({
+        success: false,
+        message: "No coupon applied to the cart",
+      });
+    }
+
+    cart.couponId = null;
+    cart.couponCode = null;
+    await cart.save();
+
+    res.json({
+      success: true,
+      message: "Coupon removed successfully",
+    });
+  } catch (error) {
+    console.error("Error removing coupon:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to remove coupon",
       error: error.message,
     });
   }

@@ -44,6 +44,7 @@ exports.getCart = async (req, res) => {
     const totals = await calculateOrderTotals({
       subtotal: cart.totalAmount || 0,
       user,
+      couponCode: cart.couponCode,
     });
 
     // Transform cart and add fees

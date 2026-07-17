@@ -222,4 +222,10 @@ router.post(
   appSellerController.switchAppUserRole,
 );
 
+router.put(
+  "/coupons",
+  authenticateToken,
+  couponController.removeCoupon,
+);
+
 module.exports = router;

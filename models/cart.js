@@ -39,6 +39,11 @@ const cartSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    couponId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "coupons",
+    },
+    couponCode:String,
   },
   {
     timestamps: true,

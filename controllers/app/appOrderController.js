@@ -2,9 +2,8 @@ const Order = require("../../models/orders");
 const Cart = require("../../models/cart");
 const Product = require("../../models/products");
 const User = require("../../models/users");
-const Zone = require("../../models/zones");
 const Address = require("../../models/address");
-const Settings = require("../../models/settings");
+const { calculateOrderTotals } = require("../../utils/orderTotals");
 
 const {
   getRazorpayCredentials,
@@ -18,7 +17,7 @@ const {
 exports.initiatePayment = async (req, res) => {
   try {
     const userId = req.userId;
-    const { addressId, notes, paymentMethod = "razorpay" } = req.body;
+    const { addressId, notes, paymentMethod = "razorpay", couponCode } = req.body;
 
     // Validation
     if (!addressId) {
@@ -83,38 +82,32 @@ exports.initiatePayment = async (req, res) => {
       0,
     );
 
-    // Get settings
-    const settings = await Settings.findById("site-settings").select(
-      "globalDeliveryCharges platformFee",
-    );
-
-    // Default delivery charge
-    let deliveryCharge = settings?.globalDeliveryCharges || 0;
-
-    // Zone-specific delivery charge
-    if (user?.zoneId) {
-      const zone = await Zone.findById(user.zoneId).select("deliveryCharge");
-
-      if (zone?.deliveryCharge != null) {
-        deliveryCharge = zone.deliveryCharge;
-      }
-    }
-
-    // Platform fee
-    const platformFeePercentage = settings?.platformFee || 0;
-    const platformFee = Math.round((totalAmount * platformFeePercentage) / 100);
-
-    // Final payable amount
-    const grandTotal = totalAmount + deliveryCharge + platformFee;
+    const totals = await calculateOrderTotals({
+      subtotal: totalAmount,
+      user,
+      couponCode,
+    });
 
     // Create order
     const order = new Order({
       userId,
       items: orderItems,
       totalAmount,
-      deliveryCharge,
-      platformFee,
-      grandTotal,
+      deliveryCharge: totals.deliveryCharge,
+      platformFee: totals.platformFee,
+      taxPercentage: totals.taxPercentage,
+      taxAmount: totals.taxAmount,
+      discountAmount: totals.discountAmount,
+      coupon: totals.coupon
+        ? {
+            couponId: totals.coupon._id,
+            code: totals.coupon.code,
+            type: totals.coupon.type,
+            value: totals.coupon.value,
+            discountAmount: totals.discountAmount,
+          }
+        : undefined,
+      grandTotal: totals.grandTotal,
       orderType,
       addressId,
       notes: notes || "",
@@ -144,7 +137,7 @@ exports.initiatePayment = async (req, res) => {
     // For Razorpay payment, create Razorpay order
     try {
       const razorpayOrder = await createRazorpayOrder(
-        grandTotal,
+        totals.grandTotal,
         "INR",
         order._id.toString(),
       );
@@ -162,7 +155,7 @@ exports.initiatePayment = async (req, res) => {
         data: {
           orderId: order._id,
           orderNumber: order.orderNumber,
-          amount: grandTotal,
+          amount: totals.grandTotal,
           razorpayOrderId: razorpayOrder.id,
           currency: "INR",
         },
@@ -174,9 +167,9 @@ exports.initiatePayment = async (req, res) => {
     }
   } catch (error) {
     console.error("Error initiating payment:", error);
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      message: "Failed to initiate payment",
+      message: error.statusCode ? error.message : "Failed to initiate payment",
       error: error.message,
     });
   }

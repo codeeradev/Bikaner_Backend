@@ -1,6 +1,4 @@
-const Role = require("../models/roles");
 const SellerApplication = require("../models/sellerApplications");
-const User = require("../models/users");
 
 exports.getSellerApplications = async (req, res) => {
   try {
@@ -72,45 +70,6 @@ exports.approveSellerApplication = async (req, res) => {
         message: `Application is already ${application.status}`,
       });
     }
-
-    const user = await User.findById(application.userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "Applicant user not found",
-      });
-    }
-
-    const existingMobile = await User.findOne({
-      mobile: application.mobile,
-      _id: { $ne: application.userId },
-    });
-    if (existingMobile) {
-      return res.status(400).json({
-        success: false,
-        message: "Mobile number already in use",
-      });
-    }
-
-    if (application.email) {
-      const existingEmail = await User.findOne({
-        email: application.email,
-        _id: { $ne: application.userId },
-      });
-      if (existingEmail) {
-        return res.status(400).json({
-          success: false,
-          message: "Email already in use",
-        });
-      }
-    }
-
-    user.constRoleId = 3;
-    user.name = application.name;
-    user.mobile = application.mobile;
-    user.email = application.email || user.email;
-    user.cityId = application.cityId;
-    await user.save();
 
     application.status = "approved";
     application.reviewedBy = req.userId;

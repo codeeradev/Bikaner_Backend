@@ -1,8 +1,32 @@
 const Order = require("../models/orders");
 const User = require("../models/users");
+const Settings = require("../models/settings");
 const {
   sendNotificationWithPersistence,
 } = require("./notificationController");
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+
+const formatDate = (value) =>
+  value
+    ? new Intl.DateTimeFormat("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date(value))
+    : "";
 
 const canEditOrderType = (role, orderType) => {
   if (!role) return false;
@@ -104,6 +128,190 @@ exports.getOrderDetails = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch order details",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Generate printable invoice for an order (Admin only)
+ */
+exports.generateInvoice = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const [order, settings] = await Promise.all([
+      Order.findById(orderId)
+        .populate("userId", "name email mobile")
+        .populate("items.productId", "name sku")
+        .populate("addressId"),
+      Settings.findById("site-settings").select(
+        "siteTitle siteDescription contactEmail contactPhone",
+      ),
+    ]);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    const customerName =
+      order.userId?.name || order.addressId?.name || "Customer";
+    const customerMobile = order.userId?.mobile || order.addressId?.mobile || "";
+    const customerEmail = order.userId?.email || "";
+    const addressLines = [
+      order.addressId?.house_No,
+      order.addressId?.address,
+      order.addressId?.landmark,
+      order.addressId?.city,
+    ].filter(Boolean);
+
+    const rows = order.items
+      .map((item, index) => {
+        const product = item.productId || {};
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>
+              <strong>${escapeHtml(product.name || "Product")}</strong>
+              ${product.sku ? `<div class="muted">SKU: ${escapeHtml(product.sku)}</div>` : ""}
+            </td>
+            <td>${escapeHtml(item.priceType)}</td>
+            <td class="num">${item.quantity}</td>
+            <td class="num">${formatCurrency(item.price)}</td>
+            <td class="num">${formatCurrency(item.subtotal)}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const couponRow =
+      order.discountAmount > 0
+        ? `
+          <div class="total-row discount">
+            <span>Coupon Discount${order.coupon?.code ? ` (${escapeHtml(order.coupon.code)})` : ""}</span>
+            <strong>- ${formatCurrency(order.discountAmount)}</strong>
+          </div>
+        `
+        : "";
+
+    const html = `<!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Invoice ${escapeHtml(order.orderNumber || order._id)}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { margin: 0; color: #111827; font-family: Arial, sans-serif; background: #f3f4f6; }
+          .page { max-width: 900px; margin: 24px auto; padding: 36px; background: #fff; border: 1px solid #e5e7eb; }
+          .header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #111827; padding-bottom: 20px; }
+          h1 { margin: 0; font-size: 30px; letter-spacing: 0; }
+          h2 { margin: 0 0 8px; font-size: 16px; }
+          .muted { color: #6b7280; font-size: 12px; margin-top: 4px; }
+          .meta { text-align: right; line-height: 1.6; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 28px 0; }
+          .box { border: 1px solid #e5e7eb; padding: 16px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          th { background: #111827; color: #fff; text-align: left; padding: 10px; font-size: 12px; }
+          td { border-bottom: 1px solid #e5e7eb; padding: 12px 10px; vertical-align: top; }
+          .num { text-align: right; white-space: nowrap; }
+          .totals { width: 340px; margin-left: auto; margin-top: 24px; }
+          .total-row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #e5e7eb; }
+          .discount { color: #047857; }
+          .grand { font-size: 20px; border-bottom: 0; border-top: 2px solid #111827; margin-top: 8px; padding-top: 14px; }
+          .footer { margin-top: 36px; color: #6b7280; font-size: 12px; text-align: center; }
+          .print { position: fixed; right: 24px; top: 24px; }
+          button { border: 1px solid #111827; background: #111827; color: #fff; padding: 10px 14px; cursor: pointer; }
+          @media print {
+            body { background: #fff; }
+            .page { margin: 0; max-width: none; border: 0; }
+            .print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print" onclick="window.print()">Print Invoice</button>
+        <main class="page">
+          <section class="header">
+            <div>
+              <h1>${escapeHtml(settings?.siteTitle || "Bikaner Biscuit")}</h1>
+              <div class="muted">${escapeHtml(settings?.siteDescription || "")}</div>
+              <div class="muted">${escapeHtml(settings?.contactEmail || "")} ${settings?.contactPhone ? `| ${escapeHtml(settings.contactPhone)}` : ""}</div>
+            </div>
+            <div class="meta">
+              <strong>Invoice</strong><br />
+              Order: ${escapeHtml(order.orderNumber || order._id)}<br />
+              Date: ${escapeHtml(formatDate(order.createdAt))}<br />
+              Payment: ${escapeHtml(order.paymentStatus)} / ${escapeHtml(order.paymentMethod)}
+            </div>
+          </section>
+
+          <section class="grid">
+            <div class="box">
+              <h2>Billed To</h2>
+              <strong>${escapeHtml(customerName)}</strong><br />
+              ${customerMobile ? `${escapeHtml(customerMobile)}<br />` : ""}
+              ${customerEmail ? `${escapeHtml(customerEmail)}<br />` : ""}
+            </div>
+            <div class="box">
+              <h2>Delivery Address</h2>
+              ${addressLines.map((line) => escapeHtml(line)).join("<br />") || "N/A"}
+            </div>
+          </section>
+
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Item</th>
+                <th>Price Type</th>
+                <th class="num">Qty</th>
+                <th class="num">Rate</th>
+                <th class="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+
+          <section class="totals">
+            <div class="total-row">
+              <span>Subtotal</span>
+              <strong>${formatCurrency(order.totalAmount)}</strong>
+            </div>
+            ${couponRow}
+            <div class="total-row">
+              <span>Included Tax (${Number(order.taxPercentage || 0)}%)</span>
+              <strong>${formatCurrency(order.taxAmount)}</strong>
+            </div>
+            <div class="total-row">
+              <span>Delivery Charge</span>
+              <strong>${formatCurrency(order.deliveryCharge)}</strong>
+            </div>
+            <div class="total-row">
+              <span>Platform Fee</span>
+              <strong>${formatCurrency(order.platformFee)}</strong>
+            </div>
+            <div class="total-row grand">
+              <span>Grand Total</span>
+              <strong>${formatCurrency(order.grandTotal)}</strong>
+            </div>
+          </section>
+
+          <div class="footer">This is a system generated invoice.</div>
+        </main>
+      </body>
+      </html>`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (error) {
+    console.error("Error generating invoice:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate invoice",
       error: error.message,
     });
   }

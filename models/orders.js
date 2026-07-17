@@ -47,6 +47,34 @@ const orderSchema = new mongoose.Schema(
       default: 0,
     },
     platformFee:Number,
+    taxPercentage: {
+      type: Number,
+      default: 0,
+    },
+    taxAmount: {
+      type: Number,
+      default: 0,
+    },
+    coupon: {
+      couponId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "coupons",
+      },
+      code: String,
+      type: {
+        type: String,
+        enum: ["percentage", "flat"],
+      },
+      value: Number,
+      discountAmount: {
+        type: Number,
+        default: 0,
+      },
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+    },
     grandTotal: {
       type: Number,
       required: true,

@@ -1,5 +1,29 @@
 const Settings = require("../models/settings");
 
+const parseNumberSetting = (value, fieldLabel, { min = 0, max } = {}) => {
+  const parsedValue = Number(value);
+
+  if (!Number.isFinite(parsedValue) || parsedValue < min) {
+    return {
+      error: `${fieldLabel} must be a number greater than or equal to ${min}`,
+    };
+  }
+
+  if (max !== undefined && parsedValue > max) {
+    return {
+      error: `${fieldLabel} must be less than or equal to ${max}`,
+    };
+  }
+
+  return { value: parsedValue };
+};
+
+const parseBooleanSetting = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value === "true";
+  return Boolean(value);
+};
+
 /**
  * Get site settings
  */
@@ -50,6 +74,12 @@ exports.updateSettings = async (req, res) => {
       linkedinUrl,
       maintenanceMode,
       maintenanceMessage,
+      razorpayKeyId,
+      razorpayKeySecret,
+      razorpayWebhookSecret,
+      globalDeliveryCharges,
+      platformFee,
+      globalTax,
     } = req.body;
 
     let settings = await Settings.findById("site-settings");
@@ -90,8 +120,49 @@ exports.updateSettings = async (req, res) => {
     if (instagramUrl !== undefined) settings.instagramUrl = instagramUrl;
     if (twitterUrl !== undefined) settings.twitterUrl = twitterUrl;
     if (linkedinUrl !== undefined) settings.linkedinUrl = linkedinUrl;
-    if (maintenanceMode !== undefined) settings.maintenanceMode = maintenanceMode;
+    if (maintenanceMode !== undefined) {
+      settings.maintenanceMode = parseBooleanSetting(maintenanceMode);
+    }
     if (maintenanceMessage !== undefined) settings.maintenanceMessage = maintenanceMessage;
+    if (razorpayKeyId !== undefined) settings.razorpayKeyId = razorpayKeyId;
+    if (razorpayKeySecret !== undefined) settings.razorpayKeySecret = razorpayKeySecret;
+    if (razorpayWebhookSecret !== undefined) settings.razorpayWebhookSecret = razorpayWebhookSecret;
+    if (globalDeliveryCharges !== undefined) {
+      const result = parseNumberSetting(
+        globalDeliveryCharges,
+        "Global delivery charges",
+      );
+
+      if (result.error) {
+        return res.status(400).json({ success: false, message: result.error });
+      }
+
+      settings.globalDeliveryCharges = result.value;
+    }
+    if (platformFee !== undefined) {
+      const result = parseNumberSetting(platformFee, "Platform fee", {
+        min: 0,
+        max: 100,
+      });
+
+      if (result.error) {
+        return res.status(400).json({ success: false, message: result.error });
+      }
+
+      settings.platformFee = result.value;
+    }
+    if (globalTax !== undefined) {
+      const result = parseNumberSetting(globalTax, "Global tax", {
+        min: 0,
+        max: 100,
+      });
+
+      if (result.error) {
+        return res.status(400).json({ success: false, message: result.error });
+      }
+
+      settings.globalTax = result.value;
+    }
 
     // Handle logo upload
     if (req.file) {
@@ -121,7 +192,7 @@ exports.updateSettings = async (req, res) => {
 exports.getPublicSettings = async (req, res) => {
   try {
     let settings = await Settings.findById("site-settings").select(
-      "siteTitle siteLogo siteDescription contactEmail contactPhone range termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl"
+      "siteTitle siteLogo siteDescription contactEmail contactPhone range termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl maintenanceMode maintenanceMessage globalDeliveryCharges platformFee globalTax"
     );
 
     // Create default settings if none exist

@@ -438,5 +438,5 @@ module.exports = {
   createUser,
   updateUser,
   deleteUser,
-  toggleUserStatus
+  toggleUserStatus,
 };

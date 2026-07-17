@@ -5,7 +5,7 @@ const upload = require("../middleware/upload");
 
 const { getActiveCategories } = require("../controllers/categoryController");
 
-const { getActiveZones } = require("../controllers/zoneController");
+const { getActiveZones, getActiveCity } = require("../controllers/zoneController");
 
 const { getActiveBanners } = require("../controllers/appBannerController");
 
@@ -27,6 +27,7 @@ const appSellerController = require("../controllers/app/appSellerController");
 const appAddressController = require("../controllers/app/appAddressController");
 const razorpayWebhook = require("../controllers/app/razorpayWebhook");
 const notificationController = require("../controllers/notificationController");
+const couponController = require("../controllers/couponController");
 
 // ============= PUBLIC ROUTES (No Auth Required) =============
 // GET active banners
@@ -35,11 +36,15 @@ router.get("/banners", getActiveBanners);
 // GET active categories
 router.get("/categories", getActiveCategories);
 
+router.get("/cities", getActiveCity);
 // GET active zones
 router.get("/zones", getActiveZones);
 
 // GET public settings (terms, privacy policy, etc.)
 router.get("/settings", settingsController.getPublicSettings);
+
+// GET active coupons
+router.get("/coupons", couponController.getActiveCoupons);
 
 // ============= AUTH ROUTES =============
 // POST send OTP (Step 1)
@@ -137,6 +142,9 @@ router.post(
   appOrderController.initiatePayment,
 );
 
+// POST apply coupon to current cart
+router.post("/coupons/apply", authenticateToken, couponController.applyCoupon);
+
 // POST verify payment
 router.post(
   "/orders/verify-payment",
@@ -206,6 +214,12 @@ router.delete(
   "/notifications/:notificationId",
   authenticateToken,
   notificationController.deleteNotification,
+);
+
+router.post(
+  "/users/switch-role",
+  authenticateToken,
+  appSellerController.switchAppUserRole,
 );
 
 module.exports = router;

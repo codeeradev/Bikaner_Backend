@@ -1,6 +1,6 @@
 const Zone = require("../models/zones");
 const User = require("../models/users");
-
+const City = require("../models/cities")
 // Get all zones
 exports.getAllZones = async (req, res) => {
   try {
@@ -313,6 +313,34 @@ exports.addAddress = async (req, res) => {
       status: false,
       message: "Server error",
       error: error.message,
+    });
+  }
+};
+
+
+exports.getActiveCity = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    
+    const cities = await City.find({ isActive: true })
+      .sort({ name: 1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const count = await City.countDocuments({ isActive: true });
+
+    res.status(200).json({
+      success: true,
+      data: cities,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      total: count
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching cities",
+      error: error.message
     });
   }
 };

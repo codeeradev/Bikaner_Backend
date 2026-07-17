@@ -1,8 +1,7 @@
 const Cart = require("../../models/cart");
 const Product = require("../../models/products");
 const User = require("../../models/users");
-const Zone = require("../../models/zones");
-const Settings = require("../../models/settings");
+const { calculateOrderTotals } = require("../../utils/orderTotals");
 
 /**
  * Get user's cart
@@ -41,34 +40,21 @@ exports.getCart = async (req, res) => {
       await cart.save();
     }
 
-    // Get user to fetch zoneId
     const user = await User.findById(userId).select("zoneId");
-    
-    // Get settings for global delivery charge and platform fee
-    const settings = await Settings.findById("site-settings").select("globalDeliveryCharges platformFee");
-    
-    // Initialize delivery charge with global default
-    let deliveryCharge = settings?.globalDeliveryCharges || 0;
-    
-    // If user has a zone, try to get zone-specific delivery charge
-    if (user && user.zoneId) {
-      const zone = await Zone.findById(user.zoneId).select("deliveryCharge");
-      if (zone && zone.deliveryCharge !== undefined && zone.deliveryCharge !== null) {
-        deliveryCharge = zone.deliveryCharge;
-      }
-    }
-    
-    // Calculate platform fee
-    const platformFeePercentage = settings?.platformFee || 0;
-    const subtotal = cart.totalAmount || 0;
-    const platformFee = Math.round((subtotal * platformFeePercentage) / 100);
+    const totals = await calculateOrderTotals({
+      subtotal: cart.totalAmount || 0,
+      user,
+    });
 
     // Transform cart and add fees
     const cartData = transformCart(cart);
-    cartData.deliveryCharge = deliveryCharge;
-    cartData.platformFee = platformFee;
-    cartData.subtotal = subtotal;
-    cartData.grandTotal = subtotal + deliveryCharge + platformFee;
+    cartData.deliveryCharge = totals.deliveryCharge;
+    cartData.platformFee = totals.platformFee;
+    cartData.taxPercentage = totals.taxPercentage;
+    cartData.taxAmount = totals.taxAmount;
+    cartData.discountAmount = totals.discountAmount;
+    cartData.subtotal = totals.totalAmount;
+    cartData.grandTotal = totals.grandTotal;
 
     res.json({
       success: true,

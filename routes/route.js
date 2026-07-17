@@ -22,6 +22,7 @@ const bannerController = require("../controllers/bannerController");
 const settingsController = require("../controllers/settingsController");
 const orderController = require("../controllers/orderController");
 const sellerApplicationController = require("../controllers/sellerApplicationController");
+const couponController = require("../controllers/couponController");
 
 // ============= PUBLIC AUTH ROUTES =============
 // POST login
@@ -184,6 +185,13 @@ router.get(
   orderController.getOrderDetails,
 );
 
+router.get(
+  "/orders/:orderId/invoice",
+  authenticateToken,
+  checkPermission(PERMISSIONS.ORDERS_VIEW),
+  orderController.generateInvoice,
+);
+
 router.put(
   "/orders/:orderId/status",
   authenticateToken,
@@ -232,6 +240,35 @@ router.put(
   authenticateToken,
   checkPermission(PERMISSIONS.SELLER_APPROVALS_MANAGE),
   sellerApplicationController.rejectSellerApplication,
+);
+
+// ============= COUPON ROUTES =============
+router.get(
+  "/coupons",
+  authenticateToken,
+  requireAdmin,
+  couponController.getCoupons,
+);
+
+router.post(
+  "/coupons",
+  authenticateToken,
+  requireAdmin,
+  couponController.createCoupon,
+);
+
+router.put(
+  "/coupons/:id",
+  authenticateToken,
+  requireAdmin,
+  couponController.updateCoupon,
+);
+
+router.delete(
+  "/coupons/:id",
+  authenticateToken,
+  requireAdmin,
+  couponController.deleteCoupon,
 );
 
 // ============= CATEGORY ROUTES =============

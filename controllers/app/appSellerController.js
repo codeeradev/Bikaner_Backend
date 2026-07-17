@@ -1,5 +1,7 @@
 const User = require("../../models/users");
 const SellerApplication = require("../../models/sellerApplications");
+const Role = require("../../models/roles");
+const { SPECIAL_ROLES } = require("../../constants/permissions");
 
 /**
  * Request to become a seller
@@ -94,7 +96,9 @@ exports.becomeSeller = async (req, res) => {
       cityId,
     });
 
-    const populatedApplication = await SellerApplication.findById(application._id)
+    const populatedApplication = await SellerApplication.findById(
+      application._id,
+    )
       .populate("userId", "name email mobile")
       .populate("cityId", "name");
 
@@ -157,6 +161,63 @@ exports.getBulkOrders = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch bulk orders",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Switch app user between User and Seller roles by constRoleId only
+ */
+exports.switchAppUserRole = async (req, res) => {
+  try {
+    const { id } = req.user;
+    const { requestedRole } = req.body;
+
+    if (!requestedRole || !["user", "seller"].includes(requestedRole.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        message: "requestedRole must be 'user' or 'seller'",
+      });
+    }
+
+    const constRoleId = requestedRole.toLowerCase() === "seller" ? 3 : 1;
+
+    const user = await User.findById(id).populate("roleId", "name");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (user.constRoleId === 4 || user.roleId?.name === SPECIAL_ROLES.ADMIN) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot switch role for admin users",
+      });
+    }
+
+    user.constRoleId = constRoleId;
+    await user.save();
+
+    const updatedUser = await User.findById(user._id)
+      .populate("roleId", "name permissions isActive")
+      .populate("cityId", "name")
+      .populate("zoneId", "name")
+      .select("-password");
+
+    res.json({
+      success: true,
+      message: `User switched to ${requestedRole.toLowerCase() === "seller" ? "Seller" : "User"}`,
+      data: updatedUser,
+    });
+  } catch (error) {
+    console.error("Error switching user role:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to switch user role",
       error: error.message,
     });
   }

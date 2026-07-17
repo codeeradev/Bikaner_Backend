@@ -231,7 +231,7 @@ exports.getProfile = async (req, res) => {
 
     const user = await User.findById(userId)
       .populate("cityId", "name")
-      .select("-password -roleId -__v -zoneId -allowedCategories -isBlocked -constRoleId -createdAt -customPricingEnabled");
+      .select("-password -roleId -__v -zoneId -allowedCategories -isBlocked -createdAt -customPricingEnabled");
 
       if (!user) {
       return res.status(404).json({
@@ -243,11 +243,14 @@ exports.getProfile = async (req, res) => {
     // Check if profile is completed
     const profileCompleted = !!(user.name && user.name.trim() !== "");
 
+    const distributer = user.constRoleId === 3;
+
     res.json({
       success: true,
       data: {
         ...user.toObject(),
         profileCompleted,
+        distributer
       },
     });
   } catch (error) {

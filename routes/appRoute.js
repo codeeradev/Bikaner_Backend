@@ -143,7 +143,7 @@ router.post(
 );
 
 // POST apply coupon to current cart
-router.post("/coupons/apply", authenticateToken, couponController.applyCoupon);
+router.post("/coupons", authenticateToken, couponController.applyCoupon);
 
 // POST verify payment
 router.post(

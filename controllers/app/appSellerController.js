@@ -10,10 +10,10 @@ const { SPECIAL_ROLES } = require("../../constants/permissions");
 exports.becomeSeller = async (req, res) => {
   try {
     const userId = req.userId;
-    const { name, mobile, email, gst, address, cityId } = req.body;
+    const { name, mobile, email, gst, address } = req.body;
 
     // Validation
-    if (!name || !mobile || !address || !cityId) {
+    if (!name || !mobile || !address) {
       return res.status(400).json({
         success: false,
         message: "Name, mobile, address, and city are required",
@@ -93,7 +93,6 @@ exports.becomeSeller = async (req, res) => {
       email: email || "",
       gst: gst || "",
       address,
-      cityId,
     });
 
     const populatedApplication = await SellerApplication.findById(

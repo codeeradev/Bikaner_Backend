@@ -2,6 +2,8 @@ const jwt = require("jsonwebtoken");
 const User = require("../../models/users");
 const Role = require("../../models/roles");
 const OTP = require("../../models/otp");
+const SellerApplication = require("../models/sellerApplication"); // adjust path
+
 const {
   generateOTP,
   sendOTPEmail,
@@ -191,7 +193,7 @@ exports.verifyOTP = async (req, res) => {
       }
     }
 
-    if(fcmToken!==undefined && fcmToken!==null){
+    if (fcmToken !== undefined && fcmToken !== null) {
       user.fcmToken = fcmToken;
       await user.save();
     }
@@ -231,14 +233,20 @@ exports.getProfile = async (req, res) => {
 
     const user = await User.findById(userId)
       .populate("cityId", "name")
-      .select("-password -roleId -__v -zoneId -allowedCategories -isBlocked -createdAt -customPricingEnabled");
+      .select(
+        "-password -roleId -__v -zoneId -allowedCategories -isBlocked -createdAt -customPricingEnabled",
+      );
 
-      if (!user) {
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
+
+    const application = await SellerApplication.findOne({ userId }).select(
+      "status rejectionReason",
+    );
 
     // Check if profile is completed
     const profileCompleted = !!(user.name && user.name.trim() !== "");
@@ -250,7 +258,9 @@ exports.getProfile = async (req, res) => {
       data: {
         ...user.toObject(),
         profileCompleted,
-        distributer
+        applicationStatus: application?.status || null,
+        rejectionReason: application?.rejectionReason || "",
+        distributer,
       },
     });
   } catch (error) {
@@ -271,7 +281,7 @@ exports.updateProfile = async (req, res) => {
     const userId = req.userId;
     const { name, email, lat, lng } = req.body;
 
-    console.log(req.body)
+    console.log(req.body);
     const user = await User.findById(userId);
 
     if (!user) {
@@ -316,7 +326,9 @@ exports.updateProfile = async (req, res) => {
     const updatedUser = await User.findById(userId)
       .populate("roleId", "name")
       .populate("cityId", "name")
-      .select("-password -roleId -__v -zoneId -allowedCategories -isBlocked -constRoleId -createdAt -customPricingEnabled");
+      .select(
+        "-password -roleId -__v -zoneId -allowedCategories -isBlocked -constRoleId -createdAt -customPricingEnabled",
+      );
 
     res.json({
       success: true,

@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../../models/users");
 const Role = require("../../models/roles");
 const OTP = require("../../models/otp");
-const SellerApplication = require("../models/sellerApplication"); // adjust path
+const SellerApplication = require("../../models/sellerApplication"); // adjust path
 
 const {
   generateOTP,

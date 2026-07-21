@@ -89,7 +89,7 @@ exports.createProduct = async (req, res) => {
       unit,
       mrp,
       sellingPrice,
-      bulkPrice,
+      bulkPricing,
       stock,
       minBulkQty,
       isFeatured,
@@ -141,6 +141,14 @@ exports.createProduct = async (req, res) => {
         : ingredients;
     }
 
+    // Parse bulkPricing if provided as JSON string (FormData serialization)
+    let parsedBulkPricing;
+    if (bulkPricing) {
+      parsedBulkPricing = typeof bulkPricing === 'string'
+        ? JSON.parse(bulkPricing)
+        : bulkPricing;
+    }
+
     const product = new Product({
       categoryId,
       name,
@@ -152,7 +160,7 @@ exports.createProduct = async (req, res) => {
       unit,
       mrp,
       sellingPrice,
-      bulkPrice,
+      bulkPricing: parsedBulkPricing,
       stock,
       minBulkQty,
       isFeatured,
@@ -192,7 +200,7 @@ exports.updateProduct = async (req, res) => {
       unit,
       mrp,
       sellingPrice,
-      bulkPrice,
+      bulkPricing,
       stock,
       minBulkQty,
       isFeatured,
@@ -238,7 +246,6 @@ exports.updateProduct = async (req, res) => {
     if (unit !== undefined) product.unit = unit;
     if (mrp !== undefined) product.mrp = mrp;
     if (sellingPrice !== undefined) product.sellingPrice = sellingPrice;
-    if (bulkPrice !== undefined) product.bulkPrice = bulkPrice;
     if (stock !== undefined) product.stock = stock;
     if (minBulkQty !== undefined) product.minBulkQty = minBulkQty;
     if (isFeatured !== undefined) product.isFeatured = isFeatured;
@@ -268,6 +275,19 @@ exports.updateProduct = async (req, res) => {
       product.ingredients = parsedIngredients.length === 0
         ? undefined
         : parsedIngredients;
+    }
+
+    // Handle bulkPricing update
+    if (bulkPricing !== undefined) {
+      // Parse JSON string if provided
+      const parsedBulkPricing = typeof bulkPricing === 'string'
+        ? JSON.parse(bulkPricing)
+        : bulkPricing;
+      
+      // Empty array means remove data, set to undefined
+      product.bulkPricing = parsedBulkPricing.length === 0
+        ? undefined
+        : parsedBulkPricing;
     }
 
     await product.save();

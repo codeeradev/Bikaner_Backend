@@ -25,7 +25,23 @@ const productSchema = new mongoose.Schema(
 
     sellingPrice:Number,
 
-    bulkPrice:Number,
+    bulkPricing:{
+        type:[{
+            minQty:{
+                type:Number,
+                required:true
+            },
+            maxQty:{
+                type:Number,
+                required:true
+            },
+            price:{
+                type:Number,
+                required:true
+            }
+        }],
+        default:undefined
+    },
 
     city:{
         type:mongoose.Schema.Types.ObjectId,

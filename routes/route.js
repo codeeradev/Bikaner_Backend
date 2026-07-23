@@ -22,7 +22,7 @@ const bannerController = require("../controllers/bannerController");
 const settingsController = require("../controllers/settingsController");
 const orderController = require("../controllers/orderController");
 const sellerApplicationController = require("../controllers/sellerApplicationController");
-const couponController = require("../controllers/couponController");
+const offerController = require("../controllers/offerController");
 
 // ============= PUBLIC AUTH ROUTES =============
 // POST login
@@ -242,33 +242,39 @@ router.put(
   sellerApplicationController.rejectSellerApplication,
 );
 
-// ============= COUPON ROUTES =============
 router.get(
-  "/coupons",
+  "/offers",
   authenticateToken,
-  requireAdmin,
-  couponController.getCoupons,
+  checkPermission(PERMISSIONS.OFFERS_VIEW),
+  offerController.getOffers,
+);
+
+router.get(
+  "/offers/:id",
+  authenticateToken,
+  checkPermission(PERMISSIONS.OFFERS_VIEW),
+  offerController.getOfferById,
 );
 
 router.post(
-  "/coupons",
+  "/offers",
   authenticateToken,
-  requireAdmin,
-  couponController.createCoupon,
+  checkPermission(PERMISSIONS.OFFERS_MANAGE),
+  offerController.createOffer,
 );
 
 router.put(
-  "/coupons/:id",
+  "/offers/:id",
   authenticateToken,
-  requireAdmin,
-  couponController.updateCoupon,
+  checkPermission(PERMISSIONS.OFFERS_MANAGE),
+  offerController.updateOffer,
 );
 
 router.delete(
-  "/coupons/:id",
+  "/offers/:id",
   authenticateToken,
-  requireAdmin,
-  couponController.deleteCoupon,
+  checkPermission(PERMISSIONS.OFFERS_MANAGE),
+  offerController.deleteOffer,
 );
 
 // ============= CATEGORY ROUTES =============
@@ -427,6 +433,14 @@ router.get(
   authenticateToken,
   checkPermission(PERMISSIONS.PRODUCTS_VIEW),
   productController.getAllProducts,
+);
+
+// GET products for selection (simple list with id, name, image)
+router.get(
+  "/products/selection",
+  authenticateToken,
+  checkPermission(PERMISSIONS.PRODUCTS_VIEW),
+  productController.getProductsForSelection,
 );
 
 // GET single product by ID

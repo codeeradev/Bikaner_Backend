@@ -43,7 +43,13 @@ const cartSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "coupons",
     },
-    couponCode:String,
+    couponCode: String,
+    // New offer system
+    offerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "offers",
+    },
+    offerCode: String,
   },
   {
     timestamps: true,

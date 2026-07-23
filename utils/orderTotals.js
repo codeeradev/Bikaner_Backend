@@ -1,8 +1,11 @@
-const Coupon = require("../models/coupons");
+const Offer = require("../models/offers");
 const Settings = require("../models/settings");
 const Zone = require("../models/zones");
 
-const normalizeCouponCode = (code) => String(code || "").trim().toUpperCase();
+const normalizeOfferCode = (code) => String(code || "").trim().toUpperCase();
+
+// Legacy support
+const normalizeCouponCode = normalizeOfferCode;
 
 const getSettings = async () => {
   let settings = await Settings.findById("site-settings").select(
@@ -31,52 +34,148 @@ const getDeliveryCharge = async (user, settings) => {
   return deliveryCharge;
 };
 
-const getActiveCoupon = async (code) => {
-  const normalizedCode = normalizeCouponCode(code);
+const getActiveOffer = async (code) => {
+  const normalizedCode = normalizeOfferCode(code);
   if (!normalizedCode) return null;
 
-  return Coupon.findOne({ code: normalizedCode, isActive: true });
+  const now = new Date();
+  const offer = await Offer.findOne({
+    couponCode: normalizedCode,
+    isActive: true,
+    startDate: { $lte: now },
+    $or: [{ endDate: { $gte: now } }, { endDate: null }],
+  });
+
+  if (offer && !offer.isValid()) return null;
+
+  return offer;
 };
 
-const calculateCouponDiscount = (coupon, subtotal) => {
-  if (!coupon) return 0;
+// Legacy support for old coupon system
+const getActiveCoupon = getActiveOffer;
+
+const calculateOfferDiscount = (offer, subtotal, cartItems = []) => {
+  if (!offer) return { discountAmount: 0, freeProducts: [] };
 
   const orderSubtotal = Number(subtotal || 0);
 
-  if (orderSubtotal < Number(coupon.minOrderAmount || 0)) {
+  // Check minimum cart value
+  if (orderSubtotal < Number(offer.minCartValue || 0)) {
     const error = new Error(
-      `Coupon requires a minimum order amount of ₹${coupon.minOrderAmount}`,
+      `Offer requires a minimum cart value of ₹${offer.minCartValue}`,
     );
     error.statusCode = 400;
     throw error;
   }
 
-  if (coupon.type === "percentage") {
-    return Math.min(
-      orderSubtotal,
-      Math.round((orderSubtotal * Number(coupon.value || 0)) / 100),
-    );
+  let discountAmount = 0;
+  const freeProducts = [];
+
+  switch (offer.offerType) {
+    case "flat_discount":
+      discountAmount = Math.min(orderSubtotal, Number(offer.discountValue || 0));
+      break;
+
+    case "percentage_discount":
+      discountAmount = Math.round(
+        (orderSubtotal * Number(offer.discountValue || 0)) / 100,
+      );
+      if (offer.maxDiscountAmount && discountAmount > offer.maxDiscountAmount) {
+        discountAmount = offer.maxDiscountAmount;
+      }
+      discountAmount = Math.min(orderSubtotal, discountAmount);
+      break;
+
+    case "free_product":
+      if (offer.freeProductConfig && offer.freeProductConfig.productId) {
+        freeProducts.push({
+          productId: offer.freeProductConfig.productId,
+          quantity: offer.freeProductConfig.quantity || 1,
+        });
+      }
+      break;
+
+    case "bogo":
+      // BOGO logic would be more complex and depend on cart items
+      // Simplified version here
+      if (offer.bogoConfig && offer.bogoConfig.applyOn === "free_product") {
+        if (offer.bogoConfig.freeProductId) {
+          freeProducts.push({
+            productId: offer.bogoConfig.freeProductId,
+            quantity: offer.bogoConfig.getQuantity || 1,
+          });
+        }
+      }
+      break;
+
+    case "buy_x_get_y":
+      // Buy X Get Y logic
+      if (offer.buyXGetYConfig && offer.buyXGetYConfig.getProducts) {
+        offer.buyXGetYConfig.getProducts.forEach((getProduct) => {
+          if (getProduct.discountPercentage === 100) {
+            freeProducts.push({
+              productId: getProduct.productId,
+              quantity: getProduct.quantity || 1,
+            });
+          }
+        });
+      }
+      break;
+
+    case "combo":
+      // Combo discount calculation
+      if (offer.comboConfig && offer.comboConfig.comboPrice) {
+        const comboOriginalPrice = cartItems
+          .filter((item) =>
+            offer.comboConfig.products.some(
+              (p) => p.productId.toString() === item.productId._id.toString(),
+            ),
+          )
+          .reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+        if (comboOriginalPrice > offer.comboConfig.comboPrice) {
+          discountAmount = comboOriginalPrice - offer.comboConfig.comboPrice;
+        }
+      }
+      break;
+
+    default:
+      break;
   }
 
-  return Math.min(orderSubtotal, Number(coupon.value || 0));
+  return { discountAmount, freeProducts };
 };
 
-const calculateOrderTotals = async ({ subtotal, user, couponCode }) => {
+// Legacy support
+const calculateCouponDiscount = (coupon, subtotal) => {
+  const result = calculateOfferDiscount(coupon, subtotal);
+  return result.discountAmount;
+};
+
+const calculateOrderTotals = async ({ subtotal, user, couponCode, offerCode, cartItems = [] }) => {
   const settings = await getSettings();
   const totalAmount = Number(subtotal || 0);
   const deliveryCharge = await getDeliveryCharge(user, settings);
   const platformFeePercentage = Number(settings?.platformFee || 0);
   const platformFee = Math.round((totalAmount * platformFeePercentage) / 100);
   const taxPercentage = Number(settings?.globalTax || 0);
-  const coupon = couponCode ? await getActiveCoupon(couponCode) : null;
+  
+  // Support both old couponCode and new offerCode parameters
+  const code = offerCode || couponCode;
+  const offer = code ? await getActiveOffer(code) : null;
 
-  if (couponCode && !coupon) {
-    const error = new Error("Invalid or inactive coupon code");
+  if (code && !offer) {
+    const error = new Error("Invalid or inactive offer code");
     error.statusCode = 400;
     throw error;
   }
 
-  const discountAmount = calculateCouponDiscount(coupon, totalAmount);
+  const { discountAmount, freeProducts } = calculateOfferDiscount(
+    offer,
+    totalAmount,
+    cartItems,
+  );
+  
   const taxableAmount = Math.max(totalAmount - discountAmount, 0);
   const taxAmount =
     taxPercentage > 0
@@ -90,14 +189,18 @@ const calculateOrderTotals = async ({ subtotal, user, couponCode }) => {
     platformFee,
     taxPercentage,
     taxAmount,
-    coupon,
+    offer,
+    coupon: offer, // Legacy support
     discountAmount,
+    freeProducts,
     grandTotal,
   };
 };
 
 module.exports = {
-  normalizeCouponCode,
-  calculateCouponDiscount,
+  normalizeOfferCode,
+  normalizeCouponCode, // Legacy support
+  calculateOfferDiscount,
+  calculateCouponDiscount, // Legacy support
   calculateOrderTotals,
 };

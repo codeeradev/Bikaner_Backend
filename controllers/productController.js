@@ -436,3 +436,37 @@ exports.toggleProductFeatured = async (req, res) => {
     });
   }
 };
+
+// Get simple product list for selection (name, id, image)
+exports.getProductsForSelection = async (req, res) => {
+  try {
+    const { search, limit = 50 } = req.query;
+    const filter = { isActive: true };
+
+    if (search) {
+      filter.name = new RegExp(search, "i");
+    }
+
+    const products = await Product.find(filter)
+      .select("name images sellingPrice")
+      .limit(parseInt(limit))
+      .sort({ name: 1 });
+
+    res.json({
+      success: true,
+      data: products.map(product => ({
+        id: product._id,
+        name: product.name,
+        image: product.images?.[0] || product.image || null,
+        price: product.sellingPrice,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching products for selection:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch products",
+      error: error.message,
+    });
+  }
+};

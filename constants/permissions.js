@@ -25,6 +25,7 @@ const MODULES = {
   USERS: 'users',
   ROLES: 'roles',
   WALLET: 'wallet',
+  OFFERS: 'offers',
   SETTINGS: 'settings',
   THEME: 'theme',
   PROFILE: 'profile',
@@ -131,6 +132,10 @@ const PERMISSIONS = {
   // Wallet
   WALLET_VIEW: createPermission(MODULES.WALLET, ACTIONS.VIEW),
   WALLET_MANAGE: createPermission(MODULES.WALLET, ACTIONS.MANAGE),
+
+  // Offers
+  OFFERS_VIEW: createPermission(MODULES.OFFERS, ACTIONS.VIEW),
+  OFFERS_MANAGE: createPermission(MODULES.OFFERS, ACTIONS.MANAGE),
 
   // Settings
   SETTINGS_VIEW: createPermission(MODULES.SETTINGS, ACTIONS.VIEW),

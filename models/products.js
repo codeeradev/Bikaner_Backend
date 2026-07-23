@@ -58,11 +58,6 @@ const productSchema = new mongoose.Schema(
         default:0
     },
 
-    minBulkQty:{
-        type:Number,
-        default:0
-    },
-
     isFeatured:{
         type:Boolean,
         default:false

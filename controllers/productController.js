@@ -91,7 +91,6 @@ exports.createProduct = async (req, res) => {
       sellingPrice,
       bulkPricing,
       stock,
-      minBulkQty,
       isFeatured,
       isActive,
       nutritionValues,
@@ -147,6 +146,32 @@ exports.createProduct = async (req, res) => {
       parsedBulkPricing = typeof bulkPricing === 'string'
         ? JSON.parse(bulkPricing)
         : bulkPricing;
+      
+      // Validate and convert string numbers to actual numbers
+      if (Array.isArray(parsedBulkPricing) && parsedBulkPricing.length > 0) {
+        parsedBulkPricing = parsedBulkPricing.map(tier => ({
+          minQty: Number(tier.minQty),
+          maxQty: Number(tier.maxQty),
+          price: Number(tier.price)
+        }));
+        
+        // Validate bulk pricing tiers
+        const isValid = parsedBulkPricing.every(tier => 
+          !isNaN(tier.minQty) && 
+          !isNaN(tier.maxQty) && 
+          !isNaN(tier.price) &&
+          tier.minQty >= 0 &&
+          tier.maxQty >= tier.minQty &&
+          tier.price >= 0
+        );
+        
+        if (!isValid) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid bulk pricing tiers. Each tier must have valid minQty, maxQty, and price, with maxQty >= minQty",
+          });
+        }
+      }
     }
 
     const product = new Product({
@@ -162,7 +187,6 @@ exports.createProduct = async (req, res) => {
       sellingPrice,
       bulkPricing: parsedBulkPricing,
       stock,
-      minBulkQty,
       isFeatured,
       isActive,
       nutritionValues: parsedNutritionValues,
@@ -202,7 +226,6 @@ exports.updateProduct = async (req, res) => {
       sellingPrice,
       bulkPricing,
       stock,
-      minBulkQty,
       isFeatured,
       isActive,
       nutritionValues,
@@ -247,7 +270,6 @@ exports.updateProduct = async (req, res) => {
     if (mrp !== undefined) product.mrp = mrp;
     if (sellingPrice !== undefined) product.sellingPrice = sellingPrice;
     if (stock !== undefined) product.stock = stock;
-    if (minBulkQty !== undefined) product.minBulkQty = minBulkQty;
     if (isFeatured !== undefined) product.isFeatured = isFeatured;
     if (isActive !== undefined) product.isActive = isActive;
 
@@ -284,10 +306,35 @@ exports.updateProduct = async (req, res) => {
         ? JSON.parse(bulkPricing)
         : bulkPricing;
       
-      // Empty array means remove data, set to undefined
-      product.bulkPricing = parsedBulkPricing.length === 0
-        ? undefined
-        : parsedBulkPricing;
+      // Validate and convert bulk pricing tiers if not empty
+      if (Array.isArray(parsedBulkPricing) && parsedBulkPricing.length > 0) {
+        const convertedTiers = parsedBulkPricing.map(tier => ({
+          minQty: Number(tier.minQty),
+          maxQty: Number(tier.maxQty),
+          price: Number(tier.price)
+        }));
+        
+        const isValid = convertedTiers.every(tier => 
+          !isNaN(tier.minQty) && 
+          !isNaN(tier.maxQty) && 
+          !isNaN(tier.price) &&
+          tier.minQty >= 0 &&
+          tier.maxQty >= tier.minQty &&
+          tier.price >= 0
+        );
+        
+        if (!isValid) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid bulk pricing tiers. Each tier must have valid minQty, maxQty, and price, with maxQty >= minQty",
+          });
+        }
+        
+        product.bulkPricing = convertedTiers;
+      } else {
+        // Empty array means remove data, set to undefined
+        product.bulkPricing = undefined;
+      }
     }
 
     await product.save();

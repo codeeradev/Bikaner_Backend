@@ -93,6 +93,10 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    enableRazorpayForSellers: {
+      type: Boolean,
+      default: false,
+    },
     globalDeliveryCharges: { type: Number, default: 30 },
     platformFee: { type: Number, default: 5 },
     globalTax: { type: Number, default: 0 },

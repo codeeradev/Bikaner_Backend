@@ -5,22 +5,38 @@ const mongoose = require("mongoose");
 
 /**
  * Transform product with role-based pricing
+ * For bulk users (role 3): Calculate price based on quantity tiers in bulkPricing
+ * For regular users: Use sellingPrice
  */
 const transformProductForUser = (product, user) => {
   const productObj = product.toObject({
     flattenMaps: true,
   });
 
+  // Determine pricing based on user role
   if (user && user.constRoleId === 3) {
-    productObj.displayPrice = productObj.bulkPrice;
+    // Bulk user - expose bulk pricing tiers
+    productObj.displayPrice = productObj.sellingPrice; // Default to selling price
     productObj.priceType = "bulk";
+    productObj.bulkPricingTiers = productObj.bulkPricing || [];
+    
+    // If bulk pricing tiers exist, show the lowest tier price as display price
+    if (productObj.bulkPricing && productObj.bulkPricing.length > 0) {
+      const lowestTier = productObj.bulkPricing.reduce((min, tier) => 
+        tier.price < min.price ? tier : min
+      );
+      productObj.displayPrice = lowestTier.price;
+      productObj.minBulkQuantity = lowestTier.minQty;
+    }
   } else {
+    // Regular user - use selling price
     productObj.displayPrice = productObj.sellingPrice;
     productObj.priceType = "selling";
   }
 
+  // Remove sensitive pricing data from response
   delete productObj.sellingPrice;
-  delete productObj.bulkPrice;
+  delete productObj.bulkPricing;
 
   return productObj;
 };

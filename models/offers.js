@@ -13,133 +13,54 @@ const offerSchema = new mongoose.Schema(
       default: "",
     },
     
-    // Offer Type Configuration
+    // Offer Type Configuration - Only 3 types supported
     offerType: {
       type: String,
       enum: [
         "flat_discount",        // Flat amount off
         "percentage_discount",  // Percentage off
-        "bogo",                // Buy One Get One
+        "bogo",                // Buy One Get One (adds free quantity)
       ],
       required: true,
-    },
-    
-    // Coupon Configuration
-    requiresCoupon: {
-      type: Boolean,
-      default: false,
-    },
-    couponCode: {
-      type: String,
-      trim: true,
-      uppercase: true,
-      sparse: true, // Allows null but enforces uniqueness when set
     },
     
     // Discount Configuration (for flat/percentage)
     discountValue: {
       type: Number,
       min: 0,
+      required: function() {
+        return this.offerType === "flat_discount" || this.offerType === "percentage_discount";
+      },
     },
     maxDiscountAmount: {
       type: Number,
       min: 0,
+      // Only applicable for percentage_discount
     },
     
-    // BOGO Configuration
+    // BOGO Configuration - simplified for specific products
     bogoConfig: {
       buyQuantity: {
         type: Number,
         min: 1,
+        default: 1,
       },
       getQuantity: {
-        type: Number,
-        min: 1,
-      },
-      applyOn: {
-        type: String,
-        enum: ["same_product", "cheapest", "free_product"],
-      },
-      freeProductId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "products",
-      },
-    },
-    
-    // Buy X Get Y Configuration
-    buyXGetYConfig: {
-      buyProducts: [{
-        productId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "products",
-        },
-        quantity: {
-          type: Number,
-          min: 1,
-        },
-      }],
-      getProducts: [{
-        productId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "products",
-        },
-        quantity: {
-          type: Number,
-          min: 1,
-        },
-        discountPercentage: {
-          type: Number,
-          min: 0,
-          max: 100,
-          default: 100, // 100% = free
-        },
-      }],
-    },
-    
-    // Combo Configuration
-    comboConfig: {
-      products: [{
-        productId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "products",
-        },
-        quantity: {
-          type: Number,
-          min: 1,
-        },
-      }],
-      comboPrice: {
-        type: Number,
-        min: 0,
-      },
-    },
-    
-    // Free Product Configuration
-    freeProductConfig: {
-      productId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "products",
-      },
-      quantity: {
         type: Number,
         min: 1,
         default: 1,
       },
     },
     
-    // Applicability
+    // Applicability - Only cart or specific_products
     applicableOn: {
       type: String,
-      enum: ["cart", "specific_products", "category"],
+      enum: ["cart", "specific_products"],
       required: true,
     },
     specificProducts: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: "products",
-    }],
-    specificCategories: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "categories",
     }],
     
     // Conditions
@@ -147,19 +68,6 @@ const offerSchema = new mongoose.Schema(
       type: Number,
       min: 0,
       default: 0,
-    },
-    maxUsagePerUser: {
-      type: Number,
-      min: 0,
-    },
-    totalUsageLimit: {
-      type: Number,
-      min: 0,
-    },
-    currentUsageCount: {
-      type: Number,
-      default: 0,
-      min: 0,
     },
     
     // Date Range
@@ -174,18 +82,13 @@ const offerSchema = new mongoose.Schema(
     // Behavior
     priority: {
       type: Number,
-      default: 0,
-      description: "Higher priority offers are evaluated first",
-    },
-    isStackable: {
-      type: Boolean,
-      default: false,
-      description: "Can this offer be combined with other stackable offers",
+      default: 1,
+      min: 1, // Priority starts from 1, not 0
     },
     autoApply: {
       type: Boolean,
-      default: false,
-      description: "Automatically apply if conditions met (for non-coupon offers)",
+      default: true,
+      description: "Automatically apply if conditions met",
     },
     
     // Status
@@ -200,27 +103,11 @@ const offerSchema = new mongoose.Schema(
 );
 
 // Indexes
-offerSchema.index({ couponCode: 1 }, { sparse: true, unique: true });
 offerSchema.index({ isActive: 1, startDate: 1, endDate: 1 });
 offerSchema.index({ priority: -1 });
 
 // Validation
 offerSchema.pre("validate", function (next) {
-  // Normalize coupon code
-  if (this.couponCode) {
-    this.couponCode = this.couponCode.trim().toUpperCase();
-  }
-  
-  // If requires coupon, coupon code is mandatory
-  if (this.requiresCoupon && !this.couponCode) {
-    this.invalidate("couponCode", "Coupon code is required when requiresCoupon is true");
-  }
-  
-  // If doesn't require coupon, autoApply should be possible
-  if (!this.requiresCoupon && !this.autoApply) {
-    this.autoApply = true; // Default to auto-apply for non-coupon offers
-  }
-  
   // Validate percentage discount
   if (this.offerType === "percentage_discount" && this.discountValue > 100) {
     this.invalidate("discountValue", "Percentage discount cannot exceed 100");
@@ -229,6 +116,34 @@ offerSchema.pre("validate", function (next) {
   // Validate date range
   if (this.endDate && this.startDate && this.endDate < this.startDate) {
     this.invalidate("endDate", "End date must be after start date");
+  }
+  
+  // Validate specific products when applicable
+  if (this.applicableOn === "specific_products" && (!this.specificProducts || this.specificProducts.length === 0)) {
+    this.invalidate("specificProducts", "At least one product must be specified when applicableOn is specific_products");
+  }
+  
+  // BOGO requires specific products
+  if (this.offerType === "bogo" && this.applicableOn !== "specific_products") {
+    this.invalidate("applicableOn", "BOGO offers must be applied to specific products");
+  }
+  
+  // BOGO requires bogoConfig
+  if (this.offerType === "bogo") {
+    if (!this.bogoConfig) {
+      this.bogoConfig = { buyQuantity: 1, getQuantity: 1 };
+    }
+    if (!this.bogoConfig.buyQuantity || this.bogoConfig.buyQuantity < 1) {
+      this.bogoConfig.buyQuantity = 1;
+    }
+    if (!this.bogoConfig.getQuantity || this.bogoConfig.getQuantity < 1) {
+      this.bogoConfig.getQuantity = 1;
+    }
+  }
+  
+  // Ensure priority is at least 1 (0 is not allowed)
+  if (this.priority < 1) {
+    this.priority = 1;
   }
 });
 
@@ -239,10 +154,6 @@ offerSchema.methods.isValid = function () {
   const now = new Date();
   if (this.startDate > now) return false;
   if (this.endDate && this.endDate < now) return false;
-  
-  if (this.totalUsageLimit && this.currentUsageCount >= this.totalUsageLimit) {
-    return false;
-  }
   
   return true;
 };

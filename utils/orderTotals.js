@@ -68,75 +68,85 @@ const calculateOfferDiscount = (offer, subtotal, cartItems = []) => {
     throw error;
   }
 
+  // Check if offer is applicable to specific products
+  let applicableAmount = orderSubtotal;
+  let applicableItems = cartItems;
+  
+  if (offer.applicableOn === "specific_products" && offer.specificProducts && offer.specificProducts.length > 0) {
+    // Filter only applicable products
+    applicableItems = cartItems.filter((item) => {
+      const productId = item.productId?._id || item.productId;
+      return offer.specificProducts.some(
+        (pid) => pid.toString() === productId.toString()
+      );
+    });
+    
+    // Calculate subtotal only for specific products
+    applicableAmount = applicableItems.reduce((sum, item) => {
+      const price = Number(item.price || 0);
+      const quantity = Number(item.quantity || 0);
+      return sum + (price * quantity);
+    }, 0);
+    
+    // If no applicable products in cart, offer cannot be applied
+    if (applicableAmount === 0) {
+      const error = new Error(
+        "This offer is only applicable to specific products not currently in your cart",
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
   let discountAmount = 0;
-  const freeProducts = [];
+  let freeProducts = [];
 
   switch (offer.offerType) {
     case "flat_discount":
-      discountAmount = Math.min(orderSubtotal, Number(offer.discountValue || 0));
+      // Simple flat discount - deduct the discount value from applicable amount
+      discountAmount = Math.min(applicableAmount, Number(offer.discountValue || 0));
       break;
 
     case "percentage_discount":
+      // Calculate percentage discount on applicable amount
       discountAmount = Math.round(
-        (orderSubtotal * Number(offer.discountValue || 0)) / 100,
+        (applicableAmount * Number(offer.discountValue || 0)) / 100,
       );
+      // Apply max discount cap if specified
       if (offer.maxDiscountAmount && discountAmount > offer.maxDiscountAmount) {
         discountAmount = offer.maxDiscountAmount;
       }
-      discountAmount = Math.min(orderSubtotal, discountAmount);
-      break;
-
-    case "free_product":
-      if (offer.freeProductConfig && offer.freeProductConfig.productId) {
-        freeProducts.push({
-          productId: offer.freeProductConfig.productId,
-          quantity: offer.freeProductConfig.quantity || 1,
-        });
-      }
+      // Ensure discount doesn't exceed applicable amount
+      discountAmount = Math.min(applicableAmount, discountAmount);
       break;
 
     case "bogo":
-      // BOGO logic would be more complex and depend on cart items
-      // Simplified version here
-      if (offer.bogoConfig && offer.bogoConfig.applyOn === "free_product") {
-        if (offer.bogoConfig.freeProductId) {
+      // BOGO: Buy X Get Y - adds free products to cart
+      const buyQty = offer.bogoConfig?.buyQuantity || 1;
+      const getQty = offer.bogoConfig?.getQuantity || 1;
+      
+      // For each applicable product, check if buy quantity is met
+      applicableItems.forEach((item) => {
+        const productId = item.productId?._id || item.productId;
+        const itemQuantity = Number(item.quantity || 0);
+        
+        // Calculate how many times the BOGO offer can be applied
+        const bogoSets = Math.floor(itemQuantity / buyQty);
+        
+        if (bogoSets > 0) {
+          // Add free quantity for this product
+          const freeQuantity = bogoSets * getQty;
+          
           freeProducts.push({
-            productId: offer.bogoConfig.freeProductId,
-            quantity: offer.bogoConfig.getQuantity || 1,
+            productId: productId,
+            quantity: freeQuantity,
+            originalItemQuantity: itemQuantity,
           });
         }
-      }
-      break;
-
-    case "buy_x_get_y":
-      // Buy X Get Y logic
-      if (offer.buyXGetYConfig && offer.buyXGetYConfig.getProducts) {
-        offer.buyXGetYConfig.getProducts.forEach((getProduct) => {
-          if (getProduct.discountPercentage === 100) {
-            freeProducts.push({
-              productId: getProduct.productId,
-              quantity: getProduct.quantity || 1,
-            });
-          }
-        });
-      }
-      break;
-
-    case "combo":
-      // Combo discount calculation
-      if (offer.comboConfig && offer.comboConfig.comboPrice) {
-        const comboOriginalPrice = cartItems
-          .filter((item) =>
-            offer.comboConfig.products.some(
-              (p) => p.productId.toString() === item.productId._id.toString(),
-            ),
-          )
-          .reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-        if (comboOriginalPrice > offer.comboConfig.comboPrice) {
-          discountAmount = comboOriginalPrice - offer.comboConfig.comboPrice;
-        }
-      }
+      });
+      
+      // No monetary discount for BOGO, items are added as free
+      discountAmount = 0;
       break;
 
     default:
@@ -152,7 +162,46 @@ const calculateCouponDiscount = (coupon, subtotal) => {
   return result.discountAmount;
 };
 
-const calculateOrderTotals = async ({ subtotal, user, couponCode, offerCode, cartItems = [] }) => {
+// Function to find and return the best auto-apply offer (used only in cart operations)
+const findBestAutoApplyOffer = async (subtotal, cartItems = []) => {
+  const totalAmount = Number(subtotal || 0);
+  const now = new Date();
+  
+  const autoApplyOffers = await Offer.find({
+    isActive: true,
+    autoApply: true,
+    requiresCoupon: false,
+    priority: { $gte: 1 },
+    startDate: { $lte: now },
+    $or: [{ endDate: { $gte: now } }, { endDate: null }],
+  })
+    .sort({ priority: -1 })
+    .limit(10);
+  
+  let bestOffer = null;
+  let maxDiscount = 0;
+  
+  for (const autoOffer of autoApplyOffers) {
+    if (!autoOffer.isValid()) continue;
+    
+    if (totalAmount < Number(autoOffer.minCartValue || 0)) continue;
+    
+    try {
+      const { discountAmount } = calculateOfferDiscount(autoOffer, totalAmount, cartItems);
+      
+      if (discountAmount > maxDiscount) {
+        maxDiscount = discountAmount;
+        bestOffer = autoOffer;
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+  
+  return bestOffer;
+};
+
+const calculateOrderTotals = async ({ subtotal, user, couponCode, offerCode, cartItems = [], offerId = null }) => {
   const settings = await getSettings();
   const totalAmount = Number(subtotal || 0);
   const deliveryCharge = await getDeliveryCharge(user, settings);
@@ -160,21 +209,32 @@ const calculateOrderTotals = async ({ subtotal, user, couponCode, offerCode, car
   const platformFee = Math.round((totalAmount * platformFeePercentage) / 100);
   const taxPercentage = Number(settings?.globalTax || 0);
   
-  // Support both old couponCode and new offerCode parameters
-  const code = offerCode || couponCode;
-  const offer = code ? await getActiveOffer(code) : null;
-
-  if (code && !offer) {
-    const error = new Error("Invalid or inactive offer code");
-    error.statusCode = 400;
-    throw error;
+  // Support both old couponCode and new offerCode parameters, OR use offerId
+  let offer = null;
+  
+  if (offerId) {
+    // If offerId is provided, fetch that specific offer (from cart)
+    offer = await Offer.findById(offerId);
+    if (offer && !offer.isValid()) {
+      offer = null; // Clear if invalid
+    }
+  } else {
+    const code = offerCode || couponCode;
+    if (code) {
+      // User provided a coupon code - validate and use it
+      offer = await getActiveOffer(code);
+      if (!offer) {
+        const error = new Error("Invalid or inactive offer code");
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+    // If no offerId and no code, DO NOT auto-apply anything
   }
 
-  const { discountAmount, freeProducts } = calculateOfferDiscount(
-    offer,
-    totalAmount,
-    cartItems,
-  );
+  const { discountAmount, freeProducts } = offer 
+    ? calculateOfferDiscount(offer, totalAmount, cartItems)
+    : { discountAmount: 0, freeProducts: [] };
   
   const taxableAmount = Math.max(totalAmount - discountAmount, 0);
   const taxAmount =
@@ -203,4 +263,5 @@ module.exports = {
   calculateOfferDiscount,
   calculateCouponDiscount, // Legacy support
   calculateOrderTotals,
+  findBestAutoApplyOffer, // For cart operations only
 };

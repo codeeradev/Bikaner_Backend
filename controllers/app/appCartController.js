@@ -40,12 +40,37 @@ exports.getCart = async (req, res) => {
       await cart.save();
     }
 
-    const user = await User.findById(userId).select("zoneId");
-    const totals = await calculateOrderTotals({
-      subtotal: cart.totalAmount || 0,
-      user,
-      couponCode: cart.couponCode,
-    });
+    const [user, settings] = await Promise.all([
+      User.findById(userId).select("zoneId"),
+      require("../../models/settings").findById("site-settings").select("enableRazorpayForSellers"),
+    ]);
+    
+    // Calculate totals with stored offer ID (if any) - NO auto-apply here
+    let totals;
+    try {
+      totals = await calculateOrderTotals({
+        subtotal: cart.totalAmount || 0,
+        user,
+        offerId: cart.offerId || null, // Pass stored offerId
+        cartItems: cart.items,
+      });
+    } catch (error) {
+      // If offer is invalid, clear it and recalculate without offer
+      if (error.statusCode === 400) {
+        cart.offerId = null;
+        cart.couponId = null;
+        await cart.save();
+        
+        totals = await calculateOrderTotals({
+          subtotal: cart.totalAmount || 0,
+          user,
+          offerId: null,
+          cartItems: cart.items,
+        });
+      } else {
+        throw error;
+      }
+    }
 
     // Transform cart and add fees
     const cartData = transformCart(cart);
@@ -54,8 +79,26 @@ exports.getCart = async (req, res) => {
     cartData.taxPercentage = totals.taxPercentage;
     cartData.taxAmount = totals.taxAmount;
     cartData.discountAmount = totals.discountAmount;
+    cartData.freeProducts = totals.freeProducts || [];
     cartData.subtotal = totals.totalAmount;
     cartData.grandTotal = totals.grandTotal;
+    
+    // Add applied offer information
+    if (totals.offer) {
+      cartData.appliedOffer = {
+        id: totals.offer._id,
+        name: totals.offer.name,
+        offerType: totals.offer.offerType,
+        autoApply: totals.offer.autoApply,
+      };
+      cartData.offerApplied = true;
+    } else {
+      cartData.appliedOffer = null;
+      cartData.offerApplied = false;
+    }
+
+    // Add Razorpay settings
+    cartData.razorpayForSellers = settings?.enableRazorpayForSellers || false;
 
     res.json({
       success: true,
@@ -154,8 +197,32 @@ exports.addToCart = async (req, res) => {
 
     await cart.save();
 
-    // Populate and return cart
-    cart = await Cart.findById(cart._id).populate({
+    // Auto-apply best offer after cart update
+    const populatedCart = await Cart.findById(cart._id).populate({
+      path: "items.productId",
+      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+    });
+
+    const { calculateOrderTotals, findBestAutoApplyOffer } = require("../../utils/orderTotals");
+
+    // Only auto-apply if no manual offer ID is stored
+    if (!cart.offerId) {
+      try {
+        // Find best auto-apply offer
+        const bestOffer = await findBestAutoApplyOffer(populatedCart.totalAmount, populatedCart.items);
+        
+        if (bestOffer) {
+          cart.offerId = bestOffer._id;
+          await cart.save();
+        }
+      } catch (error) {
+        // Don't fail if offer calculation fails
+        console.error("Error auto-applying offer:", error);
+      }
+    }
+
+    // Return final cart with populated products
+    const finalCart = await Cart.findById(cart._id).populate({
       path: "items.productId",
       select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
     });
@@ -163,7 +230,7 @@ exports.addToCart = async (req, res) => {
     res.json({
       success: true,
       message: "Item added to cart",
-      data: cart,
+      data: finalCart,
     });
   } catch (error) {
     console.error("Error adding to cart:", error);
@@ -243,8 +310,43 @@ exports.updateCartItem = async (req, res) => {
 
     await cart.save();
 
-    // Populate and return cart
-    cart = await Cart.findById(cart._id).populate({
+    // Auto-apply best offer after cart update
+    const populatedCart = await Cart.findById(cart._id).populate({
+      path: "items.productId",
+      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+    });
+
+    const { calculateOrderTotals } = require("../../utils/orderTotals");
+
+    // Only auto-apply if no manual offer ID is stored
+    if (!cart.offerId) {
+      try {
+        const user = await User.findById(userId).select("zoneId");
+        const totals = await calculateOrderTotals({
+          subtotal: populatedCart.totalAmount || 0,
+          user,
+          offerCode: null, // Force auto-apply check
+          cartItems: populatedCart.items,
+        });
+
+        // If an offer was auto-applied, save offer ID to cart
+        if (totals.offer && totals.offer.autoApply) {
+          cart.offerId = totals.offer._id;
+          await cart.save();
+        } else {
+          // Clear offer if no longer applicable
+          cart.offerId = null;
+          cart.couponId = null;
+          await cart.save();
+        }
+      } catch (error) {
+        // Don't fail if offer calculation fails
+        console.error("Error auto-applying offer:", error);
+      }
+    }
+
+    // Return final cart with populated products
+    const finalCart = await Cart.findById(cart._id).populate({
       path: "items.productId",
       select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
     });
@@ -252,7 +354,7 @@ exports.updateCartItem = async (req, res) => {
     res.json({
       success: true,
       message: "Cart updated",
-      data: cart,
+      data: finalCart,
     });
   } catch (error) {
     console.error("Error updating cart:", error);
@@ -288,8 +390,42 @@ exports.removeFromCart = async (req, res) => {
 
     await cart.save();
 
-    // Populate and return cart
-    cart = await Cart.findById(cart._id).populate({
+    // Auto-apply best offer after cart update
+    const populatedCart = await Cart.findById(cart._id).populate({
+      path: "items.productId",
+      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+    });
+
+    const { calculateOrderTotals, findBestAutoApplyOffer } = require("../../utils/orderTotals");
+
+    // Only auto-apply if no manual offer ID is stored and cart has items
+    if (!cart.offerId && cart.items.length > 0) {
+      try {
+        const user = await User.findById(userId).select("zoneId");
+        
+        // Find best auto-apply offer
+        const bestOffer = await findBestAutoApplyOffer(populatedCart.totalAmount, populatedCart.items);
+        
+        if (bestOffer) {
+          cart.offerId = bestOffer._id;
+          await cart.save();
+        } else {
+          // Clear offer if no longer applicable
+          cart.offerId = null;
+          await cart.save();
+        }
+      } catch (error) {
+        // Don't fail if offer calculation fails
+        console.error("Error auto-applying offer:", error);
+      }
+    } else if (cart.items.length === 0) {
+      // Clear offers if cart is empty
+      cart.offerId = null;
+      await cart.save();
+    }
+
+    // Return final cart with populated products
+    const finalCart = await Cart.findById(cart._id).populate({
       path: "items.productId",
       select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
     });
@@ -297,7 +433,7 @@ exports.removeFromCart = async (req, res) => {
     res.json({
       success: true,
       message: "Item removed from cart",
-      data: cart,
+      data: finalCart,
     });
   } catch (error) {
     console.error("Error removing from cart:", error);

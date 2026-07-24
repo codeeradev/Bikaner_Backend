@@ -2,10 +2,7 @@ const Offer = require("../models/offers");
 const Cart = require("../models/cart");
 const User = require("../models/users");
 const Product = require("../models/products");
-const {
-  calculateOrderTotals,
-  normalizeOfferCode,
-} = require("../utils/orderTotals");
+const { calculateOrderTotals } = require("../utils/orderTotals");
 
 const offerPayload = (body) => {
   const payload = {};
@@ -13,24 +10,15 @@ const offerPayload = (body) => {
     "name",
     "description",
     "offerType",
-    "requiresCoupon",
-    "couponCode",
     "discountValue",
     "maxDiscountAmount",
     "bogoConfig",
-    "buyXGetYConfig",
-    "comboConfig",
-    "freeProductConfig",
     "applicableOn",
     "specificProducts",
-    "specificCategories",
     "minCartValue",
-    "maxUsagePerUser",
-    "totalUsageLimit",
     "startDate",
     "endDate",
     "priority",
-    "isStackable",
     "autoApply",
     "isActive",
   ];
@@ -38,11 +26,8 @@ const offerPayload = (body) => {
   fields.forEach((field) => {
     if (body[field] !== undefined) payload[field] = body[field];
   });
-
-  if (payload.couponCode !== undefined) {
-    payload.couponCode = normalizeOfferCode(payload.couponCode);
-  }
   
+  // Convert numeric fields
   if (payload.discountValue !== undefined) {
     payload.discountValue = Number(payload.discountValue);
   }
@@ -54,11 +39,30 @@ const offerPayload = (body) => {
   if (payload.minCartValue !== undefined) {
     payload.minCartValue = Number(payload.minCartValue);
   }
+  
+  if (payload.priority !== undefined) {
+    payload.priority = Number(payload.priority);
+    // Ensure priority is at least 1
+    if (payload.priority < 1) {
+      payload.priority = 1;
+    }
+  }
+  
+  // Handle BOGO config
+  if (payload.bogoConfig) {
+    if (payload.bogoConfig.buyQuantity !== undefined) {
+      payload.bogoConfig.buyQuantity = Number(payload.bogoConfig.buyQuantity);
+    }
+    if (payload.bogoConfig.getQuantity !== undefined) {
+      payload.bogoConfig.getQuantity = Number(payload.bogoConfig.getQuantity);
+    }
+  }
 
   return payload;
 };
 
 const validateOfferPayload = (payload, isCreate = false) => {
+  // Required fields on create
   if (isCreate && !payload.name) return "Offer name is required";
   if (isCreate && !payload.offerType) return "Offer type is required";
   if (isCreate && payload.applicableOn === undefined) {
@@ -66,45 +70,61 @@ const validateOfferPayload = (payload, isCreate = false) => {
   }
   if (isCreate && !payload.startDate) return "Start date is required";
 
-  const validOfferTypes = [
-    "flat_discount",
-    "percentage_discount",
-    "bogo",
-  ];
-
+  // Validate offer type
+  const validOfferTypes = ["flat_discount", "percentage_discount", "bogo"];
   if (payload.offerType && !validOfferTypes.includes(payload.offerType)) {
     return `Offer type must be one of: ${validOfferTypes.join(", ")}`;
   }
 
-  const validApplicableOn = ["cart", "specific_products", "category"];
+  // Validate applicableOn
+  const validApplicableOn = ["cart", "specific_products"];
   if (payload.applicableOn && !validApplicableOn.includes(payload.applicableOn)) {
     return `Applicable on must be one of: ${validApplicableOn.join(", ")}`;
   }
 
-  if (payload.requiresCoupon && !payload.couponCode) {
-    return "Coupon code is required when requiresCoupon is true";
-  }
-
+  // Validate specific products
   if (
-    payload.discountValue !== undefined &&
-    (!Number.isFinite(payload.discountValue) || payload.discountValue < 0)
+    payload.applicableOn === "specific_products" &&
+    (!payload.specificProducts || payload.specificProducts.length === 0)
   ) {
-    return "Discount value must be a positive number";
+    return "At least one product must be specified when applicable on specific products";
   }
 
+  // Validate discount value for flat/percentage discounts
+  if (
+    (payload.offerType === "flat_discount" ||
+      payload.offerType === "percentage_discount") &&
+    payload.discountValue !== undefined
+  ) {
+    if (!Number.isFinite(payload.discountValue) || payload.discountValue <= 0) {
+      return "Discount value must be a positive number";
+    }
+  }
+
+  // Validate percentage discount range
   if (
     payload.offerType === "percentage_discount" &&
     payload.discountValue !== undefined &&
-    payload.discountValue > 100
+    (payload.discountValue > 100 || payload.discountValue <= 0)
   ) {
-    return "Percentage discount cannot exceed 100";
+    return "Percentage discount must be between 1 and 100";
   }
 
+  // Validate minimum cart value
   if (
     payload.minCartValue !== undefined &&
     (!Number.isFinite(payload.minCartValue) || payload.minCartValue < 0)
   ) {
-    return "Minimum cart value must be a positive number";
+    return "Minimum cart value must be a non-negative number";
+  }
+
+  // Validate date range
+  if (payload.startDate && payload.endDate) {
+    const start = new Date(payload.startDate);
+    const end = new Date(payload.endDate);
+    if (end < start) {
+      return "End date must be after start date";
+    }
   }
 
   return null;
@@ -117,17 +137,6 @@ exports.createOffer = async (req, res) => {
 
     if (validationError) {
       return res.status(400).json({ success: false, message: validationError });
-    }
-
-    // Check for duplicate coupon code
-    if (payload.couponCode) {
-      const existingOffer = await Offer.findOne({ couponCode: payload.couponCode });
-      if (existingOffer) {
-        return res.status(400).json({
-          success: false,
-          message: "Coupon code already exists",
-        });
-      }
     }
 
     const offer = await Offer.create(payload);
@@ -155,7 +164,7 @@ exports.getOffers = async (req, res) => {
     if (search) {
       filter.$or = [
         { name: new RegExp(search, "i") },
-        { couponCode: new RegExp(search, "i") },
+        { description: new RegExp(search, "i") },
       ];
     }
     if (isActive !== undefined) filter.isActive = isActive === "true";
@@ -169,13 +178,7 @@ exports.getOffers = async (req, res) => {
       .sort({ priority: -1, createdAt: -1 })
       .skip(skip)
       .limit(parsedLimit)
-      .populate("specificProducts", "name images")
-      .populate("specificCategories", "name")
-      .populate("bogoConfig.freeProductId", "name images")
-      .populate("buyXGetYConfig.buyProducts.productId", "name images")
-      .populate("buyXGetYConfig.getProducts.productId", "name images")
-      .populate("comboConfig.products.productId", "name images")
-      .populate("freeProductConfig.productId", "name images");
+      .populate("specificProducts", "name images sellingPrice");
 
     const total = await Offer.countDocuments(filter);
 
@@ -203,13 +206,7 @@ exports.getOfferById = async (req, res) => {
   try {
     const { id } = req.params;
     const offer = await Offer.findById(id)
-      .populate("specificProducts", "name images sellingPrice")
-      .populate("specificCategories", "name")
-      .populate("bogoConfig.freeProductId", "name images sellingPrice")
-      .populate("buyXGetYConfig.buyProducts.productId", "name images sellingPrice")
-      .populate("buyXGetYConfig.getProducts.productId", "name images sellingPrice")
-      .populate("comboConfig.products.productId", "name images sellingPrice")
-      .populate("freeProductConfig.productId", "name images sellingPrice");
+      .populate("specificProducts", "name images sellingPrice");
 
     if (!offer) {
       return res.status(404).json({
@@ -248,21 +245,6 @@ exports.updateOffer = async (req, res) => {
         success: false,
         message: "Offer not found",
       });
-    }
-
-    // Check for duplicate coupon code
-    if (payload.couponCode && payload.couponCode !== offer.couponCode) {
-      const existingOffer = await Offer.findOne({
-        couponCode: payload.couponCode,
-        _id: { $ne: id },
-      });
-
-      if (existingOffer) {
-        return res.status(400).json({
-          success: false,
-          message: "Coupon code already exists",
-        });
-      }
     }
 
     Object.assign(offer, payload);
@@ -311,16 +293,43 @@ exports.deleteOffer = async (req, res) => {
 
 exports.getActiveOffers = async (req, res) => {
   try {
+    const userId = req.userId;
     const now = new Date();
+    
+    // Get all active offers
     const offers = await Offer.find({
       isActive: true,
       startDate: { $lte: now },
       $or: [{ endDate: { $gte: now } }, { endDate: null }],
     })
-      .select("name description offerType requiresCoupon couponCode discountValue minCartValue startDate endDate")
+      .select("name description offerType discountValue maxDiscountAmount applicableOn specificProducts minCartValue autoApply isActive startDate endDate priority")
+      .populate("specificProducts", "name images sellingPrice")
       .sort({ priority: -1, createdAt: -1 });
 
-    const validOffers = offers.filter(offer => offer.isValid());
+    // Get user's cart to check for specific products
+    const cart = await Cart.findOne({ userId }).select("items.productId");
+
+    const cartProductIds = cart ? cart.items.map(item => item.productId.toString()) : [];
+
+    // Filter offers based on applicability
+    const validOffers = offers.filter(offer => {
+      // Check if offer is valid
+      if (!offer.isValid()) return false;
+
+      // If offer is applicable on entire cart, include it
+      if (offer.applicableOn === "cart") return true;
+
+      // If offer is for specific products, check if any of those products are in cart
+      if (offer.applicableOn === "specific_products") {
+        const offerProductIds = offer.specificProducts.map(p => p._id.toString());
+        const hasMatchingProduct = offerProductIds.some(productId => 
+          cartProductIds.includes(productId)
+        );
+        return hasMatchingProduct;
+      }
+
+      return false;
+    });
 
     res.json({
       success: true,
@@ -339,19 +348,27 @@ exports.getActiveOffers = async (req, res) => {
 exports.applyOffer = async (req, res) => {
   try {
     const userId = req.userId;
-    const code = normalizeOfferCode(req.body.code || req.body.couponCode);
+    const { offerId } = req.body;
 
-    if (!code) {
+    if (!offerId) {
       return res.status(400).json({
         success: false,
-        message: "Offer code is required",
+        message: "Offer ID is required",
       });
     }
 
-    const [user, cart] = await Promise.all([
+    const [user, cart, offer] = await Promise.all([
       User.findById(userId).select("zoneId"),
       Cart.findOne({ userId }).populate("items.productId"),
+      Offer.findById(offerId),
     ]);
+
+    if (!offer || !offer.isActive || !offer.isValid()) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired offer",
+      });
+    }
 
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({
@@ -363,12 +380,12 @@ exports.applyOffer = async (req, res) => {
     const totals = await calculateOrderTotals({
       subtotal: cart.totalAmount || 0,
       user,
-      offerCode: code,
+      offerId: offer._id,
       cartItems: cart.items,
     });
 
+    // Store the applied offer ID in cart
     cart.offerId = totals.offer._id;
-    cart.offerCode = totals.offer.couponCode || totals.offer.name;
     await cart.save();
 
     res.json({
@@ -378,7 +395,6 @@ exports.applyOffer = async (req, res) => {
         offer: {
           id: totals.offer._id,
           name: totals.offer.name,
-          code: totals.offer.couponCode,
           type: totals.offer.offerType,
           discountAmount: totals.discountAmount,
         },
@@ -407,20 +423,21 @@ exports.removeOffer = async (req, res) => {
     const userId = req.userId;
     const cart = await Cart.findOne({ userId });
 
-    if (!cart || !cart.offerId) {
+    if (!cart) {
       return res.status(400).json({
         success: false,
-        message: "No offer applied to the cart",
+        message: "Cart not found",
       });
     }
 
+    // Clear offer fields
     cart.offerId = null;
-    cart.offerCode = null;
+    cart.couponId = null;
     await cart.save();
 
     res.json({
       success: true,
-      message: "Offer removed successfully",
+      message: "Offer removed successfully.",
     });
   } catch (error) {
     console.error("Error removing offer:", error);
@@ -434,26 +451,22 @@ exports.removeOffer = async (req, res) => {
 
 exports.validateOffer = async (req, res) => {
   try {
-    const { code } = req.params;
+    const { id } = req.params;
     const userId = req.userId;
 
-    const normalizedCode = normalizeOfferCode(code);
-    if (!normalizedCode) {
+    if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Offer code is required",
+        message: "Offer ID is required",
       });
     }
 
-    const offer = await Offer.findOne({
-      couponCode: normalizedCode,
-      isActive: true,
-    });
+    const offer = await Offer.findById(id);
 
-    if (!offer || !offer.isValid()) {
+    if (!offer || !offer.isActive || !offer.isValid()) {
       return res.status(404).json({
         success: false,
-        message: "Invalid or expired offer code",
+        message: "Invalid or expired offer",
       });
     }
 

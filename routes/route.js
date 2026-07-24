@@ -435,14 +435,6 @@ router.get(
   productController.getAllProducts,
 );
 
-// GET products for selection (simple list with id, name, image)
-router.get(
-  "/products/selection",
-  authenticateToken,
-  checkPermission(PERMISSIONS.PRODUCTS_VIEW),
-  productController.getProductsForSelection,
-);
-
 // GET single product by ID
 router.get(
   "/products/:id",

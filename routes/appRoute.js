@@ -44,7 +44,7 @@ router.get("/zones", getActiveZones);
 router.get("/settings", settingsController.getPublicSettings);
 
 // GET active offers
-router.get("/offers", offerController.getActiveOffers);
+router.get("/offers", authenticateToken, offerController.getActiveOffers);
 
 // ============= AUTH ROUTES =============
 // POST send OTP (Step 1)

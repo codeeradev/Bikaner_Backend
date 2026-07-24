@@ -86,6 +86,7 @@ exports.initiatePayment = async (req, res) => {
       subtotal: totalAmount,
       user,
       couponCode,
+      cartItems: orderItems, // Pass order items for offer evaluation
     });
 
     // Create order

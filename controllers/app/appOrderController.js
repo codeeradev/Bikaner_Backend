@@ -4,6 +4,7 @@ const Product = require("../../models/products");
 const User = require("../../models/users");
 const Address = require("../../models/address");
 const { calculateOrderTotals } = require("../../utils/orderTotals");
+const Settings = require("../../models/settings");
 
 const {
   getRazorpayCredentials,
@@ -17,7 +18,12 @@ const {
 exports.initiatePayment = async (req, res) => {
   try {
     const userId = req.userId;
-    const { addressId, notes, paymentMethod = "razorpay", couponCode } = req.body;
+    const {
+      addressId,
+      notes,
+      paymentMethod = "razorpay",
+      couponCode,
+    } = req.body;
 
     // Validation
     if (!addressId) {
@@ -67,6 +73,17 @@ exports.initiatePayment = async (req, res) => {
     const isBulkOrder = cart.items.some((item) => item.priceType === "bulk");
     const orderType = isBulkOrder ? "bulk" : "normal";
 
+    // Check whether Razorpay is enabled for bulk/seller orders
+    if (isBulkOrder) {
+      const settings = await Settings.findById("site-settings").select(
+        "enableRazorpayForSellers",
+      );
+
+      // Default false: bulk orders become COD unless explicitly enabled
+      if (!settings?.enableRazorpayForSellers) {
+        paymentMethod = "cod";
+      }
+    }
     // Prepare order items
     const orderItems = cart.items.map((item) => ({
       productId: item.productId._id,

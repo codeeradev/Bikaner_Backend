@@ -25,7 +25,7 @@ const productSchema = new mongoose.Schema(
 
     sellingPrice:Number,
 
-    bulkPricing:{
+    bulkPrice:{
         type:[{
             minQty:{
                 type:Number,

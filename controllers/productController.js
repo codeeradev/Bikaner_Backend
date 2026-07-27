@@ -185,7 +185,7 @@ exports.createProduct = async (req, res) => {
       unit,
       mrp,
       sellingPrice,
-      bulkPricing: parsedBulkPricing,
+      bulkPrice: parsedBulkPricing,
       stock,
       isFeatured,
       isActive,
@@ -330,10 +330,10 @@ exports.updateProduct = async (req, res) => {
           });
         }
         
-        product.bulkPricing = convertedTiers;
+        product.bulkPrice = convertedTiers;
       } else {
         // Empty array means remove data, set to undefined
-        product.bulkPricing = undefined;
+        product.bulkPrice = undefined;
       }
     }
 

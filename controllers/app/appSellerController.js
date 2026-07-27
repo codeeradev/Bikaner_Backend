@@ -2,6 +2,9 @@ const User = require("../../models/users");
 const SellerApplication = require("../../models/sellerApplications");
 const Role = require("../../models/roles");
 const { SPECIAL_ROLES } = require("../../constants/permissions");
+const {
+  notifyAdminSellerApplication,
+} = require("../adminNotificationController");
 
 /**
  * Request to become a seller
@@ -101,6 +104,15 @@ exports.becomeSeller = async (req, res) => {
     )
       .populate("userId", "name email mobile")
       .populate("cityId", "name");
+
+    try {
+      await notifyAdminSellerApplication(populatedApplication);
+    } catch (notificationError) {
+      console.error(
+        "⚠️ Admin notification creation failed:",
+        notificationError,
+      );
+    }
 
     res.json({
       success: true,

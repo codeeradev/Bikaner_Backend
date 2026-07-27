@@ -1,5 +1,8 @@
 const Order = require("../../models/orders");
 const { verifyWebhookSignature } = require("../../utils/razorpay");
+const {
+  notifyAdminNewOrder,
+} = require("../adminNotificationController");
 
 /**
  * Handle Razorpay webhook events
@@ -77,6 +80,15 @@ async function handlePaymentCaptured(payload) {
     order.transactionDate = new Date();
 
     await order.save();
+
+    try {
+      await notifyAdminNewOrder(order);
+    } catch (notificationError) {
+      console.error(
+        "⚠️ Admin notification creation failed:",
+        notificationError,
+      );
+    }
 
     console.log(`Payment captured for order ${order.orderNumber}`);
   } catch (error) {

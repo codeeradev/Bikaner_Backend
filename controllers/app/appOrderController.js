@@ -5,6 +5,9 @@ const User = require("../../models/users");
 const Address = require("../../models/address");
 const { calculateOrderTotals } = require("../../utils/orderTotals");
 const Settings = require("../../models/settings");
+const {
+  notifyAdminNewOrder,
+} = require("../adminNotificationController");
 
 const {
   getRazorpayCredentials,
@@ -21,10 +24,11 @@ exports.initiatePayment = async (req, res) => {
     const {
       addressId,
       notes,
-      paymentMethod = "razorpay",
+      paymentMethod: requestedPaymentMethod = "razorpay",
       couponCode,
     } = req.body;
 
+    let paymentMethod = requestedPaymentMethod;
     // Validation
     if (!addressId) {
       return res.status(400).json({
@@ -73,6 +77,7 @@ exports.initiatePayment = async (req, res) => {
     const isBulkOrder = cart.items.some((item) => item.priceType === "bulk");
     const orderType = isBulkOrder ? "bulk" : "normal";
 
+    console.log(isBulkOrder)
     // Check whether Razorpay is enabled for bulk/seller orders
     if (isBulkOrder) {
       const settings = await Settings.findById("site-settings").select(
@@ -144,6 +149,15 @@ exports.initiatePayment = async (req, res) => {
       const populatedOrder = await Order.findById(order._id)
         .populate("items.productId", "name image sku")
         .populate("addressId");
+
+      try {
+        await notifyAdminNewOrder(populatedOrder);
+      } catch (notificationError) {
+        console.error(
+          "⚠️ Admin notification creation failed:",
+          notificationError,
+        );
+      }
 
       return res.status(201).json({
         success: true,
@@ -265,6 +279,15 @@ exports.verifyPayment = async (req, res) => {
     const populatedOrder = await Order.findById(order._id)
       .populate("items.productId", "name image sku")
       .populate("addressId");
+
+    try {
+      await notifyAdminNewOrder(populatedOrder);
+    } catch (notificationError) {
+      console.error(
+        "⚠️ Admin notification creation failed:",
+        notificationError,
+      );
+    }
 
     res.json({
       success: true,

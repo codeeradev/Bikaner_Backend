@@ -31,7 +31,7 @@ exports.getCart = async (req, res) => {
 
     let cart = await Cart.findOne({ userId }).populate({
       path: "items.productId",
-      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+      select: "name image sku sellingPrice bulkPrice isActive",
     });
 
     if (!cart) {
@@ -42,9 +42,11 @@ exports.getCart = async (req, res) => {
 
     const [user, settings] = await Promise.all([
       User.findById(userId).select("zoneId"),
-      require("../../models/settings").findById("site-settings").select("enableRazorpayForSellers"),
+      require("../../models/settings")
+        .findById("site-settings")
+        .select("enableRazorpayForSellers"),
     ]);
-    
+
     // Calculate totals with stored offer ID (if any) - NO auto-apply here
     let totals;
     try {
@@ -60,7 +62,7 @@ exports.getCart = async (req, res) => {
         cart.offerId = null;
         cart.couponId = null;
         await cart.save();
-        
+
         totals = await calculateOrderTotals({
           subtotal: cart.totalAmount || 0,
           user,
@@ -82,7 +84,7 @@ exports.getCart = async (req, res) => {
     cartData.freeProducts = totals.freeProducts || [];
     cartData.subtotal = totals.totalAmount;
     cartData.grandTotal = totals.grandTotal;
-    
+
     // Add applied offer information
     if (totals.offer) {
       cartData.appliedOffer = {
@@ -155,20 +157,6 @@ exports.addToCart = async (req, res) => {
       });
     }
 
-    // Determine price based on user type and quantity
-    let price = product.sellingPrice;
-    let priceType = "selling";
-
-    // If user is seller (constRoleId: 3) or buying bulk quantity
-    if (
-      user.constRoleId === 3 &&
-      quantity >= product.minBulkQty &&
-      product.minBulkQty > 0
-    ) {
-      price = product.bulkPrice;
-      priceType = "bulk";
-    }
-
     // Find or create cart
     let cart = await Cart.findOne({ userId });
     if (!cart) {
@@ -180,9 +168,32 @@ exports.addToCart = async (req, res) => {
       (item) => item.productId.toString() === productId,
     );
 
+    const existingQuantity =
+      existingItemIndex > -1
+        ? Number(cart.items[existingItemIndex].quantity)
+        : 0;
+
+    const finalQuantity = existingQuantity + Number(quantity);
+
+    let price = Number(product.sellingPrice);
+    let priceType = "selling";
+
+    if (user.constRoleId === 3) {
+      const bulkTier = product.bulkPrice?.find(
+        (tier) =>
+          finalQuantity >= Number(tier.minQty) &&
+          finalQuantity <= Number(tier.maxQty),
+      );
+
+      if (bulkTier) {
+        price = Number(bulkTier.price);
+        priceType = "bulk";
+      }
+    }
+
     if (existingItemIndex > -1) {
       // Update quantity and price
-      cart.items[existingItemIndex].quantity += quantity;
+      cart.items[existingItemIndex].quantity = finalQuantity;
       cart.items[existingItemIndex].price = price;
       cart.items[existingItemIndex].priceType = priceType;
     } else {
@@ -200,17 +211,23 @@ exports.addToCart = async (req, res) => {
     // Auto-apply best offer after cart update
     const populatedCart = await Cart.findById(cart._id).populate({
       path: "items.productId",
-      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+      select: "name image sku sellingPrice bulkPrice isActive",
     });
 
-    const { calculateOrderTotals, findBestAutoApplyOffer } = require("../../utils/orderTotals");
+    const {
+      calculateOrderTotals,
+      findBestAutoApplyOffer,
+    } = require("../../utils/orderTotals");
 
     // Only auto-apply if no manual offer ID is stored
     if (!cart.offerId) {
       try {
         // Find best auto-apply offer
-        const bestOffer = await findBestAutoApplyOffer(populatedCart.totalAmount, populatedCart.items);
-        
+        const bestOffer = await findBestAutoApplyOffer(
+          populatedCart.totalAmount,
+          populatedCart.items,
+        );
+
         if (bestOffer) {
           cart.offerId = bestOffer._id;
           await cart.save();
@@ -224,7 +241,7 @@ exports.addToCart = async (req, res) => {
     // Return final cart with populated products
     const finalCart = await Cart.findById(cart._id).populate({
       path: "items.productId",
-      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+      select: "name image sku sellingPrice bulkPrice isActive",
     });
 
     res.json({
@@ -294,11 +311,7 @@ exports.updateCartItem = async (req, res) => {
         let price = product.sellingPrice;
         let priceType = "selling";
 
-        if (
-          user.constRoleId === 3 &&
-          quantity >= product.minBulkQty &&
-          product.minBulkQty > 0
-        ) {
+        if (user.constRoleId === 3) {
           price = product.bulkPrice;
           priceType = "bulk";
         }
@@ -313,7 +326,7 @@ exports.updateCartItem = async (req, res) => {
     // Auto-apply best offer after cart update
     const populatedCart = await Cart.findById(cart._id).populate({
       path: "items.productId",
-      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+      select: "name image sku sellingPrice bulkPrice isActive",
     });
 
     const { calculateOrderTotals } = require("../../utils/orderTotals");
@@ -348,7 +361,7 @@ exports.updateCartItem = async (req, res) => {
     // Return final cart with populated products
     const finalCart = await Cart.findById(cart._id).populate({
       path: "items.productId",
-      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+      select: "name image sku sellingPrice bulkPrice isActive",
     });
 
     res.json({
@@ -393,19 +406,25 @@ exports.removeFromCart = async (req, res) => {
     // Auto-apply best offer after cart update
     const populatedCart = await Cart.findById(cart._id).populate({
       path: "items.productId",
-      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+      select: "name image sku sellingPrice bulkPrice isActive",
     });
 
-    const { calculateOrderTotals, findBestAutoApplyOffer } = require("../../utils/orderTotals");
+    const {
+      calculateOrderTotals,
+      findBestAutoApplyOffer,
+    } = require("../../utils/orderTotals");
 
     // Only auto-apply if no manual offer ID is stored and cart has items
     if (!cart.offerId && cart.items.length > 0) {
       try {
         const user = await User.findById(userId).select("zoneId");
-        
+
         // Find best auto-apply offer
-        const bestOffer = await findBestAutoApplyOffer(populatedCart.totalAmount, populatedCart.items);
-        
+        const bestOffer = await findBestAutoApplyOffer(
+          populatedCart.totalAmount,
+          populatedCart.items,
+        );
+
         if (bestOffer) {
           cart.offerId = bestOffer._id;
           await cart.save();
@@ -427,7 +446,7 @@ exports.removeFromCart = async (req, res) => {
     // Return final cart with populated products
     const finalCart = await Cart.findById(cart._id).populate({
       path: "items.productId",
-      select: "name image sku sellingPrice bulkPrice minBulkQty isActive",
+      select: "name image sku sellingPrice bulkPrice isActive",
     });
 
     res.json({

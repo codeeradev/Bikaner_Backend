@@ -23,6 +23,7 @@ const settingsController = require("../controllers/settingsController");
 const orderController = require("../controllers/orderController");
 const sellerApplicationController = require("../controllers/sellerApplicationController");
 const offerController = require("../controllers/offerController");
+const adminNotificationController = require("../controllers/adminNotificationController");
 
 // ============= PUBLIC AUTH ROUTES =============
 // POST login
@@ -218,6 +219,31 @@ router.put(
     "OR",
   ),
   orderController.cancelOrder,
+);
+
+// ============= ADMIN NOTIFICATION ROUTES =============
+router.get(
+  "/admin-notifications",
+  authenticateToken,
+  adminNotificationController.getAdminNotifications,
+);
+
+router.put(
+  "/admin-notifications/read",
+  authenticateToken,
+  adminNotificationController.markAllAdminNotificationsAsRead,
+);
+
+router.put(
+  "/admin-notifications/:notificationId/read",
+  authenticateToken,
+  adminNotificationController.markAdminNotificationAsRead,
+);
+
+router.delete(
+  "/admin-notifications/:notificationId",
+  authenticateToken,
+  adminNotificationController.deleteAdminNotification,
 );
 
 // ============= SELLER APPROVAL ROUTES =============

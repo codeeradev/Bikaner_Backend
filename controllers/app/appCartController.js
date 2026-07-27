@@ -308,12 +308,22 @@ exports.updateCartItem = async (req, res) => {
       const user = await User.findById(userId);
 
       if (product && user) {
-        let price = product.sellingPrice;
+        let price = Number(product.sellingPrice);
         let priceType = "selling";
 
         if (user.constRoleId === 3) {
-          price = product.bulkPrice;
-          priceType = "bulk";
+          const finalQuantity = Number(quantity);
+
+          const bulkTier = product.bulkPrice?.find(
+            (tier) =>
+              finalQuantity >= Number(tier.minQty) &&
+              finalQuantity <= Number(tier.maxQty),
+          );
+
+          if (bulkTier) {
+            price = Number(bulkTier.price);
+            priceType = "bulk";
+          }
         }
 
         cart.items[itemIndex].price = price;

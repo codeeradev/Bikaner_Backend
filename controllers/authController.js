@@ -16,7 +16,7 @@ const generateToken = (userId) => {
  */
 const login = async (req, res) => {
   try {
-    const { mobile, email, password } = req.body;
+    const { mobile, email, password, fcmToken } = req.body;
 
     // Validation
     if ((!mobile && !email) || !password) {
@@ -78,6 +78,15 @@ const login = async (req, res) => {
         success: false,
         message: "You are not authorized to access the admin panel.",
       });
+    }
+
+    if (
+      fcmToken &&
+      typeof fcmToken === "string" &&
+      (user.roleId.name === "Admin" || user.constRoleId === 2)
+    ) {
+      user.adminFcmToken = fcmToken;
+      await user.save();
     }
     
     // Generate token

@@ -12,7 +12,7 @@ async function sendNotification(
 ) {
   const token = await getAccessToken();
 
-  const fcmUrl = "https://fcm.googleapis.com/v1/projects/fivlia-quick-commerce/messages:send";
+  const fcmUrl = "https://fcm.googleapis.com/v1/projects/bikaner-bakeryy/messages:send";
 
   const message = {
     message: {

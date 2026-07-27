@@ -1,4 +1,7 @@
 const AdminNotification = require("../models/adminNotification");
+const Role = require("../models/roles");
+const User = require("../models/users");
+const sendAdminNotification = require("../firebase/sendAdminNotification");
 const { SPECIAL_ROLES } = require("../constants/permissions");
 
 const ADMIN_CONST_ROLE_ID = 2;
@@ -37,14 +40,86 @@ const createAdminNotification = async (data) => {
   };
 
   if (payload.sourceKey) {
-    return AdminNotification.findOneAndUpdate(
-      { sourceKey: payload.sourceKey },
-      { $setOnInsert: payload },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
+    const existingNotification = await AdminNotification.findOne({
+      sourceKey: payload.sourceKey,
+    });
+
+    if (existingNotification) {
+      return existingNotification;
+    }
   }
 
-  return AdminNotification.create(payload);
+  try {
+    const notification = await AdminNotification.create(payload);
+    await sendAdminPushNotification(notification);
+    return notification;
+  } catch (error) {
+    if (error.code === 11000 && payload.sourceKey) {
+      return AdminNotification.findOne({ sourceKey: payload.sourceKey });
+    }
+
+    throw error;
+  }
+};
+
+const getAdminPushTokens = async () => {
+  const adminRole = await Role.findOne({ name: SPECIAL_ROLES.ADMIN }).select(
+    "_id",
+  );
+  const adminFilters = [{ constRoleId: ADMIN_CONST_ROLE_ID }];
+
+  if (adminRole?._id) {
+    adminFilters.push({ roleId: adminRole._id });
+  }
+
+  const admins = await User.find({
+    $or: adminFilters,
+    status: "active",
+    isBlocked: false,
+    adminFcmToken: { $nin: [null, "", "null"] },
+  }).select("adminFcmToken");
+
+  return [
+    ...new Set(admins.map((admin) => admin.adminFcmToken).filter(Boolean)),
+  ];
+};
+
+const sendAdminPushNotification = async (notification) => {
+  try {
+    const tokens = await getAdminPushTokens();
+
+    if (tokens.length === 0) {
+      return;
+    }
+
+    const data = {
+      notificationId: notification._id.toString(),
+      type: notification.type,
+    };
+
+    if (notification.orderId) {
+      data.orderId = notification.orderId.toString();
+    }
+
+    if (notification.sellerApplicationId) {
+      data.sellerApplicationId = notification.sellerApplicationId.toString();
+    }
+
+    await Promise.allSettled(
+      tokens.map((token) =>
+        sendAdminNotification(
+          token,
+          notification.title,
+          notification.message,
+          notification.link || "/dashboard",
+          data,
+          "default",
+        ),
+      ),
+    );
+  } catch (error) {
+    console.error("⚠️ Admin FCM push failed:", error);
+  }
 };
 
 exports.notifyAdminNewOrder = async (order) => {

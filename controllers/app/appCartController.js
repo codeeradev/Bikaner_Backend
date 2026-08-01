@@ -29,24 +29,32 @@ exports.getCart = async (req, res) => {
   try {
     const userId = req.userId;
 
-    let cart = await Cart.findOne({ userId }).populate({
-      path: "items.productId",
-      select: "name image sku sellingPrice bulkPrice isActive",
-    });
-
-    if (!cart) {
-      // Create empty cart if doesn't exist
-      cart = new Cart({ userId, items: [] });
-      await cart.save();
-    }
-
     const [user, settings] = await Promise.all([
-      User.findById(userId).select("zoneId"),
+      User.findById(userId).select("zoneId constRoleId"),
       require("../../models/settings")
         .findById("site-settings")
         .select("enableRazorpayForSellers"),
     ]);
 
+    const cartType = user.constRoleId === 3 ? "bulk" : "selling";
+
+    let cart = await Cart.findOne({
+      userId,
+      cartType,
+    }).populate({
+      path: "items.productId",
+      select: "name image sku sellingPrice bulkPrice isActive",
+    });
+
+    if (!cart) {
+      cart = new Cart({
+        userId,
+        cartType,
+        items: [],
+      });
+
+      await cart.save();
+    }
     // Calculate totals with stored offer ID (if any) - NO auto-apply here
     let totals;
     try {
@@ -157,10 +165,12 @@ exports.addToCart = async (req, res) => {
       });
     }
 
+    const cartType = user.constRoleId === 3 ? "bulk" : "selling";
+
     // Find or create cart
-    let cart = await Cart.findOne({ userId });
+    let cart = await Cart.findOne({ userId, cartType });
     if (!cart) {
-      cart = new Cart({ userId, items: [] });
+      cart = new Cart({ userId, cartType, items: [] });
     }
 
     // Check if product already in cart
@@ -276,7 +286,15 @@ exports.updateCartItem = async (req, res) => {
     }
 
     // Find cart
-    let cart = await Cart.findOne({ userId });
+    const user = await User.findById(userId).select("constRoleId");
+
+    const cartType = user.constRoleId === 3 ? "bulk" : "selling";
+
+    let cart = await Cart.findOne({
+      userId,
+      cartType,
+    });
+
     if (!cart) {
       return res.status(404).json({
         success: false,
@@ -305,7 +323,6 @@ exports.updateCartItem = async (req, res) => {
 
       // Recalculate price if needed
       const product = await Product.findById(productId);
-      const user = await User.findById(userId);
 
       if (product && user) {
         let price = Number(product.sellingPrice);
@@ -398,7 +415,15 @@ exports.removeFromCart = async (req, res) => {
     const { productId } = req.params;
 
     // Find cart
-    let cart = await Cart.findOne({ userId });
+    const user = await User.findById(userId).select("constRoleId");
+
+    const cartType = user.constRoleId === 3 ? "bulk" : "selling";
+
+    let cart = await Cart.findOne({
+      userId,
+      cartType,
+    });
+
     if (!cart) {
       return res.status(404).json({
         success: false,
@@ -481,7 +506,15 @@ exports.clearCart = async (req, res) => {
   try {
     const userId = req.userId;
 
-    let cart = await Cart.findOne({ userId });
+    const user = await User.findById(userId).select("constRoleId");
+
+    const cartType = user.constRoleId === 3 ? "bulk" : "selling";
+
+    let cart = await Cart.findOne({
+      userId,
+      cartType,
+    });
+    
     if (!cart) {
       return res.status(404).json({
         success: false,

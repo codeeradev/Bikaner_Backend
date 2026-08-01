@@ -48,6 +48,11 @@ const cartSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "offers",
     },
+    cartType: {
+      type: String,
+      enum: ["selling", "bulk"],
+      required: true,
+    },
   },
   {
     timestamps: true,

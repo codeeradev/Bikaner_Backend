@@ -2,7 +2,10 @@ const Offer = require("../models/offers");
 const Settings = require("../models/settings");
 const Zone = require("../models/zones");
 
-const normalizeOfferCode = (code) => String(code || "").trim().toUpperCase();
+const normalizeOfferCode = (code) =>
+  String(code || "")
+    .trim()
+    .toUpperCase();
 
 // Legacy support
 const normalizeCouponCode = normalizeOfferCode;
@@ -71,23 +74,27 @@ const calculateOfferDiscount = (offer, subtotal, cartItems = []) => {
   // Check if offer is applicable to specific products
   let applicableAmount = orderSubtotal;
   let applicableItems = cartItems;
-  
-  if (offer.applicableOn === "specific_products" && offer.specificProducts && offer.specificProducts.length > 0) {
+
+  if (
+    offer.applicableOn === "specific_products" &&
+    offer.specificProducts &&
+    offer.specificProducts.length > 0
+  ) {
     // Filter only applicable products
     applicableItems = cartItems.filter((item) => {
       const productId = item.productId?._id || item.productId;
       return offer.specificProducts.some(
-        (pid) => pid.toString() === productId.toString()
+        (pid) => pid.toString() === productId.toString(),
       );
     });
-    
+
     // Calculate subtotal only for specific products
     applicableAmount = applicableItems.reduce((sum, item) => {
       const price = Number(item.price || 0);
       const quantity = Number(item.quantity || 0);
-      return sum + (price * quantity);
+      return sum + price * quantity;
     }, 0);
-    
+
     // If no applicable products in cart, offer cannot be applied
     if (applicableAmount === 0) {
       const error = new Error(
@@ -104,7 +111,10 @@ const calculateOfferDiscount = (offer, subtotal, cartItems = []) => {
   switch (offer.offerType) {
     case "flat_discount":
       // Simple flat discount - deduct the discount value from applicable amount
-      discountAmount = Math.min(applicableAmount, Number(offer.discountValue || 0));
+      discountAmount = Math.min(
+        applicableAmount,
+        Number(offer.discountValue || 0),
+      );
       break;
 
     case "percentage_discount":
@@ -121,30 +131,28 @@ const calculateOfferDiscount = (offer, subtotal, cartItems = []) => {
       break;
 
     case "bogo":
-      // BOGO: Buy X Get Y - adds free products to cart
-      const buyQty = offer.bogoConfig?.buyQuantity || 1;
-      const getQty = offer.bogoConfig?.getQuantity || 1;
-      
-      // For each applicable product, check if buy quantity is met
-      applicableItems.forEach((item) => {
-        const productId = item.productId?._id || item.productId;
-        const itemQuantity = Number(item.quantity || 0);
-        
-        // Calculate how many times the BOGO offer can be applied
-        const bogoSets = Math.floor(itemQuantity / buyQty);
-        
-        if (bogoSets > 0) {
-          // Add free quantity for this product
-          const freeQuantity = bogoSets * getQty;
-          
-          freeProducts.push({
-            productId: productId,
-            quantity: freeQuantity,
-            originalItemQuantity: itemQuantity,
-          });
-        }
-      });
-      
+      {
+        const buyQty = offer.bogoConfig?.buyQuantity || 1;
+        const getQty = offer.bogoConfig?.getQuantity || 1;
+
+        applicableItems.forEach((item) => {
+          const productId = item.productId?._id || item.productId;
+          const itemQuantity = Number(item.quantity || 0);
+
+          // Offer only once
+          if (itemQuantity >= buyQty) {
+            freeProducts.push({
+              productId,
+              quantity: getQty,
+              originalItemQuantity: itemQuantity,
+            });
+          }
+        });
+
+        discountAmount = 0;
+        break;
+      }
+
       // No monetary discount for BOGO, items are added as free
       discountAmount = 0;
       break;
@@ -166,7 +174,7 @@ const calculateCouponDiscount = (coupon, subtotal) => {
 const findBestAutoApplyOffer = async (subtotal, cartItems = []) => {
   const totalAmount = Number(subtotal || 0);
   const now = new Date();
-  
+
   const autoApplyOffers = await Offer.find({
     isActive: true,
     autoApply: true,
@@ -177,18 +185,22 @@ const findBestAutoApplyOffer = async (subtotal, cartItems = []) => {
   })
     .sort({ priority: -1 })
     .limit(10);
-  
+
   let bestOffer = null;
   let maxDiscount = 0;
-  
+
   for (const autoOffer of autoApplyOffers) {
     if (!autoOffer.isValid()) continue;
-    
+
     if (totalAmount < Number(autoOffer.minCartValue || 0)) continue;
-    
+
     try {
-      const { discountAmount } = calculateOfferDiscount(autoOffer, totalAmount, cartItems);
-      
+      const { discountAmount } = calculateOfferDiscount(
+        autoOffer,
+        totalAmount,
+        cartItems,
+      );
+
       if (discountAmount > maxDiscount) {
         maxDiscount = discountAmount;
         bestOffer = autoOffer;
@@ -197,21 +209,28 @@ const findBestAutoApplyOffer = async (subtotal, cartItems = []) => {
       continue;
     }
   }
-  
+
   return bestOffer;
 };
 
-const calculateOrderTotals = async ({ subtotal, user, couponCode, offerCode, cartItems = [], offerId = null }) => {
+const calculateOrderTotals = async ({
+  subtotal,
+  user,
+  couponCode,
+  offerCode,
+  cartItems = [],
+  offerId = null,
+}) => {
   const settings = await getSettings();
   const totalAmount = Number(subtotal || 0);
   const deliveryCharge = await getDeliveryCharge(user, settings);
   const platformFeePercentage = Number(settings?.platformFee || 0);
   const platformFee = Math.round((totalAmount * platformFeePercentage) / 100);
   const taxPercentage = Number(settings?.globalTax || 0);
-  
+
   // Support both old couponCode and new offerCode parameters, OR use offerId
   let offer = null;
-  
+
   if (offerId) {
     // If offerId is provided, fetch that specific offer (from cart)
     offer = await Offer.findById(offerId);
@@ -232,10 +251,10 @@ const calculateOrderTotals = async ({ subtotal, user, couponCode, offerCode, car
     // If no offerId and no code, DO NOT auto-apply anything
   }
 
-  const { discountAmount, freeProducts } = offer 
+  const { discountAmount, freeProducts } = offer
     ? calculateOfferDiscount(offer, totalAmount, cartItems)
     : { discountAmount: 0, freeProducts: [] };
-  
+
   const taxableAmount = Math.max(totalAmount - discountAmount, 0);
   const taxAmount =
     taxPercentage > 0

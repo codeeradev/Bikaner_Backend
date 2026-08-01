@@ -5,9 +5,7 @@ const User = require("../../models/users");
 const Address = require("../../models/address");
 const { calculateOrderTotals } = require("../../utils/orderTotals");
 const Settings = require("../../models/settings");
-const {
-  notifyAdminNewOrder,
-} = require("../adminNotificationController");
+const { notifyAdminNewOrder } = require("../adminNotificationController");
 
 const {
   getRazorpayCredentials,
@@ -45,6 +43,9 @@ exports.initiatePayment = async (req, res) => {
         message: "User not found",
       });
     }
+
+    const cartType = user.constRoleId === 3 ? "bulk" : "selling";
+
     // Verify address belongs to user
     const address = await Address.findOne({ _id: addressId });
     if (!address) {
@@ -55,7 +56,11 @@ exports.initiatePayment = async (req, res) => {
     }
 
     // Get cart
-    const cart = await Cart.findOne({ userId }).populate("items.productId");
+    const cart = await Cart.findOne({
+      userId,
+      cartType,
+    }).populate("items.productId");
+
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({
         success: false,
@@ -77,7 +82,7 @@ exports.initiatePayment = async (req, res) => {
     const isBulkOrder = cart.items.some((item) => item.priceType === "bulk");
     const orderType = isBulkOrder ? "bulk" : "normal";
 
-    console.log(isBulkOrder)
+    console.log(isBulkOrder);
     // Check whether Razorpay is enabled for bulk/seller orders
     if (isBulkOrder) {
       const settings = await Settings.findById("site-settings").select(
@@ -144,6 +149,7 @@ exports.initiatePayment = async (req, res) => {
     // If payment method is COD, clear cart and return order
     if (paymentMethod === "cod") {
       cart.items = [];
+      cart.offerId = null;
       await cart.save();
 
       const populatedOrder = await Order.findById(order._id)
@@ -269,9 +275,18 @@ exports.verifyPayment = async (req, res) => {
     await order.save();
 
     // Clear cart
-    const cart = await Cart.findOne({ userId });
+    const user = await User.findById(userId).select("constRoleId");
+
+    const cartType = user.constRoleId === 3 ? "bulk" : "selling";
+
+    const cart = await Cart.findOne({
+      userId,
+      cartType,
+    });
+
     if (cart) {
       cart.items = [];
+      cart.offerId = null;
       await cart.save();
     }
 

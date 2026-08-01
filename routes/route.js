@@ -24,6 +24,50 @@ const orderController = require("../controllers/orderController");
 const sellerApplicationController = require("../controllers/sellerApplicationController");
 const offerController = require("../controllers/offerController");
 const adminNotificationController = require("../controllers/adminNotificationController");
+const dashboardController = require("../controllers/dashboardController");
+
+// ============= DASHBOARD ROUTES =============
+router.get(
+  "/dashboard/stats",
+  authenticateToken,
+  dashboardController.getDashboardStats,
+);
+
+router.get(
+  "/dashboard/recent-orders",
+  authenticateToken,
+  dashboardController.getRecentOrders,
+);
+
+router.get(
+  "/dashboard/top-products",
+  authenticateToken,
+  dashboardController.getTopProducts,
+);
+
+router.get(
+  "/dashboard/inventory-status",
+  authenticateToken,
+  dashboardController.getInventoryStatus,
+);
+
+router.get(
+  "/dashboard/revenue-by-region",
+  authenticateToken,
+  dashboardController.getRevenueByRegion,
+);
+
+router.get(
+  "/dashboard/monthly-trends",
+  authenticateToken,
+  dashboardController.getMonthlyTrends,
+);
+
+router.get(
+  "/dashboard/seller-applications",
+  authenticateToken,
+  dashboardController.getRecentSellerApplications,
+);
 
 // ============= PUBLIC AUTH ROUTES =============
 // POST login

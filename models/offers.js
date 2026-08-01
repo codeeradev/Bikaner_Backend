@@ -12,24 +12,27 @@ const offerSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    
+
     // Offer Type Configuration - Only 3 types supported
     offerType: {
       type: String,
       enum: [
-        "flat_discount",        // Flat amount off
-        "percentage_discount",  // Percentage off
-        "bogo",                // Buy One Get One (adds free quantity)
+        "flat_discount", // Flat amount off
+        "percentage_discount", // Percentage off
+        "bogo", // Buy One Get One (adds free quantity)
       ],
       required: true,
     },
-    
+
     // Discount Configuration (for flat/percentage)
     discountValue: {
       type: Number,
       min: 0,
-      required: function() {
-        return this.offerType === "flat_discount" || this.offerType === "percentage_discount";
+      required: function () {
+        return (
+          this.offerType === "flat_discount" ||
+          this.offerType === "percentage_discount"
+        );
       },
     },
     maxDiscountAmount: {
@@ -37,39 +40,39 @@ const offerSchema = new mongoose.Schema(
       min: 0,
       // Only applicable for percentage_discount
     },
-    
+
     // BOGO Configuration - simplified for specific products
     bogoConfig: {
       buyQuantity: {
         type: Number,
         min: 1,
-        default: 1,
       },
       getQuantity: {
         type: Number,
         min: 1,
-        default: 1,
       },
     },
-    
+
     // Applicability - Only cart or specific_products
     applicableOn: {
       type: String,
       enum: ["cart", "specific_products"],
       required: true,
     },
-    specificProducts: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "products",
-    }],
-    
+    specificProducts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "products",
+      },
+    ],
+
     // Conditions
     minCartValue: {
       type: Number,
       min: 0,
       default: 0,
     },
-    
+
     // Date Range
     startDate: {
       type: Date,
@@ -78,7 +81,7 @@ const offerSchema = new mongoose.Schema(
     endDate: {
       type: Date,
     },
-    
+
     // Behavior
     priority: {
       type: Number,
@@ -90,7 +93,7 @@ const offerSchema = new mongoose.Schema(
       default: true,
       description: "Automatically apply if conditions met",
     },
-    
+
     // Status
     isActive: {
       type: Boolean,
@@ -112,35 +115,48 @@ offerSchema.pre("validate", function (next) {
   if (this.offerType === "percentage_discount" && this.discountValue > 100) {
     this.invalidate("discountValue", "Percentage discount cannot exceed 100");
   }
-  
+
   // Validate date range
   if (this.endDate && this.startDate && this.endDate < this.startDate) {
     this.invalidate("endDate", "End date must be after start date");
   }
-  
+
   // Validate specific products when applicable
-  if (this.applicableOn === "specific_products" && (!this.specificProducts || this.specificProducts.length === 0)) {
-    this.invalidate("specificProducts", "At least one product must be specified when applicableOn is specific_products");
+  if (
+    this.applicableOn === "specific_products" &&
+    (!this.specificProducts || this.specificProducts.length === 0)
+  ) {
+    this.invalidate(
+      "specificProducts",
+      "At least one product must be specified when applicableOn is specific_products",
+    );
   }
-  
+
   // BOGO requires specific products
   if (this.offerType === "bogo" && this.applicableOn !== "specific_products") {
-    this.invalidate("applicableOn", "BOGO offers must be applied to specific products");
+    this.invalidate(
+      "applicableOn",
+      "BOGO offers must be applied to specific products",
+    );
   }
-  
+
   // BOGO requires bogoConfig
   if (this.offerType === "bogo") {
     if (!this.bogoConfig) {
-      this.bogoConfig = { buyQuantity: 1, getQuantity: 1 };
+      this.bogoConfig = {};
     }
+
     if (!this.bogoConfig.buyQuantity || this.bogoConfig.buyQuantity < 1) {
       this.bogoConfig.buyQuantity = 1;
     }
+
     if (!this.bogoConfig.getQuantity || this.bogoConfig.getQuantity < 1) {
       this.bogoConfig.getQuantity = 1;
     }
+  } else {
+    this.set("bogoConfig", undefined);
   }
-  
+
   // Ensure priority is at least 1 (0 is not allowed)
   if (this.priority < 1) {
     this.priority = 1;
@@ -150,11 +166,11 @@ offerSchema.pre("validate", function (next) {
 // Method to check if offer is currently valid
 offerSchema.methods.isValid = function () {
   if (!this.isActive) return false;
-  
+
   const now = new Date();
   if (this.startDate > now) return false;
   if (this.endDate && this.endDate < now) return false;
-  
+
   return true;
 };
 

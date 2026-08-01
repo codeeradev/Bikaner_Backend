@@ -233,6 +233,18 @@ exports.updateOffer = async (req, res) => {
   try {
     const { id } = req.params;
     const payload = offerPayload(req.body);
+
+        if (payload.specificProducts?.length) {
+      payload.specificProducts = [
+        ...new Set(
+          payload.specificProducts.map((item) => {
+            if (typeof item === "string") return item;
+            return item.id || item._id;
+          })
+        ),
+      ];
+    }
+
     const validationError = validateOfferPayload(payload);
 
     if (validationError) {

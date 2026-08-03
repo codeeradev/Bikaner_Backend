@@ -51,7 +51,8 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-
+    playStoreUrl:String,
+    appStoreUrl:String,
     // Social Media Links
     facebookUrl: {
       type: String,

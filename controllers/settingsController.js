@@ -81,6 +81,8 @@ exports.updateSettings = async (req, res) => {
       globalDeliveryCharges,
       platformFee,
       globalTax,
+      playStoreUrl,
+      appStoreUrl,
     } = req.body;
 
     let settings = await Settings.findById("site-settings");
@@ -117,6 +119,8 @@ exports.updateSettings = async (req, res) => {
     if (aboutUs !== undefined) settings.aboutUs = aboutUs;
     if (refundPolicy !== undefined) settings.refundPolicy = refundPolicy;
     if (shippingPolicy !== undefined) settings.shippingPolicy = shippingPolicy;
+    if (playStoreUrl !== undefined) settings.playStoreUrl = playStoreUrl;
+    if (appStoreUrl !== undefined) settings.appStoreUrl = appStoreUrl;
     if (facebookUrl !== undefined) settings.facebookUrl = facebookUrl;
     if (instagramUrl !== undefined) settings.instagramUrl = instagramUrl;
     if (twitterUrl !== undefined) settings.twitterUrl = twitterUrl;
@@ -196,7 +200,7 @@ exports.updateSettings = async (req, res) => {
 exports.getPublicSettings = async (req, res) => {
   try {
     let settings = await Settings.findById("site-settings").select(
-      "siteTitle siteLogo siteDescription contactEmail contactPhone range termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl maintenanceMode maintenanceMessage globalDeliveryCharges platformFee globalTax"
+      "siteTitle siteLogo siteDescription contactEmail contactPhone range termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl maintenanceMode maintenanceMessage globalDeliveryCharges platformFee globalTax playStoreUrl appStoreUrl"
     );
 
     // Create default settings if none exist

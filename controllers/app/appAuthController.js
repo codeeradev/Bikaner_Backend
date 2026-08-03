@@ -244,7 +244,7 @@ exports.getProfile = async (req, res) => {
       });
     }
 
-    const application = await SellerApplication.findOne({ userId }).select(
+    const application = await SellerApplication.findOne({ userId }).sort({ createdAt: -1 }).select(
       "status rejectionReason",
     );
 
@@ -340,6 +340,37 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to update profile",
+      error: error.message,
+    });
+  }
+};
+
+exports.deleteAccount = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Mark user as deleted
+    user.status = "deleted";
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Account deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete account",
       error: error.message,
     });
   }

@@ -232,4 +232,6 @@ router.put(
   offerController.removeOffer,
 );
 
+router.post("/users/delete-account", authenticateToken, appAuthController.deleteAccount);
+
 module.exports = router;

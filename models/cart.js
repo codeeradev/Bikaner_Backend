@@ -28,7 +28,6 @@ const cartSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "users",
       required: true,
-      unique: true,
     },
     items: [cartItemSchema],
     totalAmount: {

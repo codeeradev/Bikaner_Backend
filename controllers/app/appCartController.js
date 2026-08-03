@@ -108,7 +108,9 @@ exports.getCart = async (req, res) => {
     }
 
     // Add Razorpay settings
-    cartData.razorpayForSellers = settings?.enableRazorpayForSellers || false;
+    if (user.constRoleId === 3) {
+      cartData.razorpayForSellers = settings?.enableRazorpayForSellers || false;
+    }
 
     res.json({
       success: true,
@@ -514,7 +516,7 @@ exports.clearCart = async (req, res) => {
       userId,
       cartType,
     });
-    
+
     if (!cart) {
       return res.status(404).json({
         success: false,

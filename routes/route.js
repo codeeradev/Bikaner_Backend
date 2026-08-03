@@ -52,9 +52,9 @@ router.get(
 );
 
 router.get(
-  "/dashboard/revenue-by-region",
+  "/dashboard/total-revenue",
   authenticateToken,
-  dashboardController.getRevenueByRegion,
+  dashboardController.getTotalRevenue,
 );
 
 router.get(

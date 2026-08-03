@@ -405,9 +405,9 @@ exports.getInventoryStatus = async (req, res) => {
 };
 
 /**
- * Get revenue (total revenue without region breakdown)
+ * Get total revenue
  */
-exports.getRevenueByRegion = async (req, res) => {
+exports.getTotalRevenue = async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
     const dateFrom = new Date();
@@ -432,28 +432,26 @@ exports.getRevenueByRegion = async (req, res) => {
     const totalRevenue = revenueData[0]?.revenue || 0;
     const totalOrders = revenueData[0]?.orders || 0;
 
-    const formattedData = [{
-      region: "Total Revenue",
-      revenue: totalRevenue,
-      orders: totalOrders,
-    }];
-
     res.status(200).json({
       success: true,
-      data: formattedData,
+      data: {
+        revenue: totalRevenue,
+        orders: totalOrders,
+        days: days,
+      },
     });
   } catch (error) {
-    console.error("Error fetching revenue:", error);
+    console.error("Error fetching total revenue:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch revenue",
+      message: "Failed to fetch total revenue",
       error: error.message,
     });
   }
 };
 
 /**
- * Get monthly trends (production vs sales)
+ * Get monthly trends (sales only)
  */
 exports.getMonthlyTrends = async (req, res) => {
   try {
@@ -490,8 +488,8 @@ exports.getMonthlyTrends = async (req, res) => {
 
       trends.push({
         month: monthName,
-        production: Math.round(sales * 1.15 * 10) / 10, // Estimate production slightly higher, NOT in lakhs
-        sales: Math.round(sales * 10) / 10, // NOT in lakhs
+        sales: sales, // Actual sales amount
+        orders: monthData[0]?.orders || 0,
       });
     }
 

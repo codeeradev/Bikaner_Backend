@@ -89,10 +89,13 @@ const calculateOfferDiscount = (offer, subtotal, cartItems = []) => {
     });
 
     // Calculate subtotal only for specific products
+    // Use originalQuantity if it exists (BOGO applied), otherwise use quantity
     applicableAmount = applicableItems.reduce((sum, item) => {
       const price = Number(item.price || 0);
-      const quantity = Number(item.quantity || 0);
-      return sum + price * quantity;
+      const quantityToCharge = item.originalQuantity !== null && item.originalQuantity !== undefined 
+        ? Number(item.originalQuantity) 
+        : Number(item.quantity || 0);
+      return sum + price * quantityToCharge;
     }, 0);
 
     // If no applicable products in cart, offer cannot be applied

@@ -64,11 +64,17 @@ const cartSchema = new mongoose.Schema(
 
 // Calculate totals before saving
 cartSchema.pre("save", function (next) {
+  // Calculate total items (all quantities including free)
   this.totalItems = this.items.reduce((sum, item) => sum + item.quantity, 0);
-  this.totalAmount = this.items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0,
-  );
+  
+  // Calculate total amount - only count original quantities, not free BOGO items
+  this.totalAmount = this.items.reduce((sum, item) => {
+    // If originalQuantity exists, it means BOGO is applied
+    // So we only count the original quantity for price calculation
+    const quantityToCharge = item.originalQuantity || item.quantity;
+    return sum + item.price * quantityToCharge;
+  }, 0);
+  
 });
 
 module.exports = mongoose.model("cart", cartSchema);

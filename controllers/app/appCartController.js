@@ -55,6 +55,7 @@ exports.getCart = async (req, res) => {
 
       await cart.save();
     }
+
     // Calculate totals with stored offer ID (if any) - NO auto-apply here
     let totals;
     try {
@@ -67,6 +68,17 @@ exports.getCart = async (req, res) => {
     } catch (error) {
       // If offer is invalid, clear it and recalculate without offer
       if (error.statusCode === 400) {
+        // Restore original quantities if BOGO was applied
+        const currentOffer = cart.offerId ? await require("../models/offers").findById(cart.offerId) : null;
+        if (currentOffer && currentOffer.offerType === "bogo") {
+          for (const cartItem of cart.items) {
+            if (cartItem.originalQuantity) {
+              cartItem.quantity = cartItem.originalQuantity;
+              cartItem.originalQuantity = undefined;
+            }
+          }
+        }
+
         cart.offerId = null;
         cart.couponId = null;
         await cart.save();
@@ -186,36 +198,78 @@ exports.addToCart = async (req, res) => {
       (item) => item.productId.toString() === productId,
     );
 
-    const existingQuantity =
-      existingItemIndex > -1
-        ? Number(cart.items[existingItemIndex].quantity)
-        : 0;
-
-    const finalQuantity = existingQuantity + Number(quantity);
-
-    let price = Number(product.sellingPrice);
-    let priceType = "selling";
-
-    if (user.constRoleId === 3) {
-      const bulkTier = product.bulkPrice?.find(
-        (tier) =>
-          finalQuantity >= Number(tier.minQty) &&
-          finalQuantity <= Number(tier.maxQty),
-      );
-
-      if (bulkTier) {
-        price = Number(bulkTier.price);
-        priceType = "bulk";
-      }
-    }
-
     if (existingItemIndex > -1) {
-      // Update quantity and price
-      cart.items[existingItemIndex].quantity = finalQuantity;
-      cart.items[existingItemIndex].price = price;
-      cart.items[existingItemIndex].priceType = priceType;
+      // Item exists in cart
+      const existingItem = cart.items[existingItemIndex];
+      
+      // Check if BOGO is applied on this item
+      const hasBOGO = existingItem.originalQuantity !== null && existingItem.originalQuantity !== undefined;
+      
+      let finalQuantity;
+      if (hasBOGO) {
+        // If BOGO is applied, add to originalQuantity
+        finalQuantity = Number(existingItem.originalQuantity) + Number(quantity);
+        existingItem.originalQuantity = finalQuantity;
+        
+        // Recalculate actual quantity with free items if BOGO offer exists
+        if (cart.offerId) {
+          const offer = await require("../../models/offers").findById(cart.offerId);
+          if (offer && offer.offerType === "bogo") {
+            const buyQty = offer.bogoConfig?.buyQuantity || 1;
+            const getQty = offer.bogoConfig?.getQuantity || 1;
+            
+            if (finalQuantity >= buyQty) {
+              existingItem.quantity = finalQuantity + getQty;
+            } else {
+              existingItem.quantity = finalQuantity;
+              existingItem.originalQuantity = undefined;
+            }
+          }
+        }
+      } else {
+        // No BOGO applied, normal quantity update
+        finalQuantity = Number(existingItem.quantity) + Number(quantity);
+        existingItem.quantity = finalQuantity;
+      }
+
+      // Recalculate price based on final quantity (use originalQuantity if BOGO)
+      let price = Number(product.sellingPrice);
+      let priceType = "selling";
+
+      if (user.constRoleId === 3) {
+        const quantityForPricing = hasBOGO ? Number(existingItem.originalQuantity) : finalQuantity;
+        const bulkTier = product.bulkPrice?.find(
+          (tier) =>
+            quantityForPricing >= Number(tier.minQty) &&
+            quantityForPricing <= Number(tier.maxQty),
+        );
+
+        if (bulkTier) {
+          price = Number(bulkTier.price);
+          priceType = "bulk";
+        }
+      }
+
+      existingItem.price = price;
+      existingItem.priceType = priceType;
     } else {
       // Add new item
+      let price = Number(product.sellingPrice);
+      let priceType = "selling";
+
+      if (user.constRoleId === 3) {
+        const bulkTier = product.bulkPrice?.find(
+          (tier) =>
+            Number(quantity) >= Number(tier.minQty) &&
+            Number(quantity) <= Number(tier.maxQty),
+        );
+
+        if (bulkTier) {
+          price = Number(bulkTier.price);
+          priceType = "bulk";
+        }
+      }
+
       cart.items.push({
         productId,
         quantity,
@@ -295,13 +349,12 @@ exports.updateCartItem = async (req, res) => {
 
     // Find cart
     const user = await User.findById(userId).select("constRoleId");
-
     const cartType = user.constRoleId === 3 ? "bulk" : "selling";
 
     let cart = await Cart.findOne({
       userId,
       cartType,
-    });
+    }).populate("offerId");
 
     if (!cart) {
       return res.status(404).json({
@@ -326,8 +379,36 @@ exports.updateCartItem = async (req, res) => {
       // Remove item if quantity is 0 or negative
       cart.items.splice(itemIndex, 1);
     } else {
-      // Update quantity
-      cart.items[itemIndex].quantity = quantity;
+      const cartItem = cart.items[itemIndex];
+      
+      // Check if BOGO offer is applied on this item
+      const hasBOGO = cartItem.originalQuantity !== null && cartItem.originalQuantity !== undefined;
+      
+      if (hasBOGO && cart.offerId) {
+        // If BOGO is applied, update originalQuantity instead of actual quantity
+        // This is the user's genuine change
+        cartItem.originalQuantity = quantity;
+        
+        // Recalculate free items based on new originalQuantity
+        const offer = cart.offerId;
+        if (offer && offer.offerType === "bogo") {
+          const buyQty = offer.bogoConfig?.buyQuantity || 1;
+          const getQty = offer.bogoConfig?.getQuantity || 1;
+          
+          // Check if still eligible for BOGO
+          if (quantity >= buyQty) {
+            // Still eligible - add free items
+            cartItem.quantity = quantity + getQty;
+          } else {
+            // Not eligible anymore - remove free items and clear originalQuantity
+            cartItem.quantity = quantity;
+            cartItem.originalQuantity = undefined;
+          }
+        }
+      } else {
+        // No BOGO applied, normal update
+        cartItem.quantity = quantity;
+      }
 
       // Recalculate price if needed
       const product = await Product.findById(productId);
@@ -337,7 +418,7 @@ exports.updateCartItem = async (req, res) => {
         let priceType = "selling";
 
         if (user.constRoleId === 3) {
-          const finalQuantity = Number(quantity);
+          const finalQuantity = Number(cartItem.originalQuantity || cartItem.quantity);
 
           const bulkTier = product.bulkPrice?.find(
             (tier) =>
@@ -351,47 +432,12 @@ exports.updateCartItem = async (req, res) => {
           }
         }
 
-        cart.items[itemIndex].price = price;
-        cart.items[itemIndex].priceType = priceType;
+        cartItem.price = price;
+        cartItem.priceType = priceType;
       }
     }
 
     await cart.save();
-
-    // Auto-apply best offer after cart update
-    const populatedCart = await Cart.findById(cart._id).populate({
-      path: "items.productId",
-      select: "name image sku sellingPrice bulkPrice isActive",
-    });
-
-    const { calculateOrderTotals } = require("../../utils/orderTotals");
-
-    // Only auto-apply if no manual offer ID is stored
-    if (!cart.offerId) {
-      try {
-        const user = await User.findById(userId).select("zoneId");
-        const totals = await calculateOrderTotals({
-          subtotal: populatedCart.totalAmount || 0,
-          user,
-          offerCode: null, // Force auto-apply check
-          cartItems: populatedCart.items,
-        });
-
-        // If an offer was auto-applied, save offer ID to cart
-        if (totals.offer && totals.offer.autoApply) {
-          cart.offerId = totals.offer._id;
-          await cart.save();
-        } else {
-          // Clear offer if no longer applicable
-          cart.offerId = null;
-          cart.couponId = null;
-          await cart.save();
-        }
-      } catch (error) {
-        // Don't fail if offer calculation fails
-        console.error("Error auto-applying offer:", error);
-      }
-    }
 
     // Return final cart with populated products
     const finalCart = await Cart.findById(cart._id).populate({

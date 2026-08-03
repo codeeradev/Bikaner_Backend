@@ -78,6 +78,7 @@ exports.updateSettings = async (req, res) => {
       razorpayKeySecret,
       razorpayWebhookSecret,
       enableRazorpayForSellers,
+      enableRazorpayForUser,
       globalDeliveryCharges,
       platformFee,
       globalTax,
@@ -134,6 +135,9 @@ exports.updateSettings = async (req, res) => {
     if (razorpayWebhookSecret !== undefined) settings.razorpayWebhookSecret = razorpayWebhookSecret;
     if (enableRazorpayForSellers !== undefined) {
       settings.enableRazorpayForSellers = parseBooleanSetting(enableRazorpayForSellers);
+    }
+    if (enableRazorpayForUser !== undefined) {
+      settings.enableRazorpayForUser = parseBooleanSetting(enableRazorpayForUser);
     }
     if (globalDeliveryCharges !== undefined) {
       const result = parseNumberSetting(

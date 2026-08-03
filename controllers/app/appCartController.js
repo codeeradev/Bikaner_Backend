@@ -33,7 +33,7 @@ exports.getCart = async (req, res) => {
       User.findById(userId).select("zoneId constRoleId"),
       require("../../models/settings")
         .findById("site-settings")
-        .select("enableRazorpayForSellers"),
+        .select("enableRazorpayForSellers enableRazorpayForUser"),
     ]);
 
     const cartType = user.constRoleId === 3 ? "bulk" : "selling";
@@ -107,9 +107,15 @@ exports.getCart = async (req, res) => {
       cartData.offerApplied = false;
     }
 
-    // Add Razorpay settings
+    // Add Razorpay settings based on user role
     if (user.constRoleId === 3) {
+      // Seller
       cartData.razorpayForSellers = settings?.enableRazorpayForSellers || false;
+    } else if (user.constRoleId === 1) {
+      // Regular user
+      cartData.razorpayForSellers = settings?.enableRazorpayForUser || false;
+    } else {
+      cartData.razorpayForSellers = false;
     }
 
     res.json({

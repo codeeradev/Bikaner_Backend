@@ -5,10 +5,10 @@ const nodemailer = require("nodemailer");
  */
 const generateOTP = () => {
   // For development, always return 123456
-  return "123456";
+  // return "123456";
 
   // For production, uncomment below to generate random OTP
-  // return Math.floor(100000 + Math.random() * 900000).toString();
+  return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 /**

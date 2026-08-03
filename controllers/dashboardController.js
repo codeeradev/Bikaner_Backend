@@ -405,7 +405,7 @@ exports.getInventoryStatus = async (req, res) => {
 };
 
 /**
- * Get revenue by region (based on cities)
+ * Get revenue (total revenue without region breakdown)
  */
 exports.getRevenueByRegion = async (req, res) => {
   try {
@@ -413,7 +413,7 @@ exports.getRevenueByRegion = async (req, res) => {
     const dateFrom = new Date();
     dateFrom.setDate(dateFrom.getDate() - days);
 
-    const revenueByCity = await Order.aggregate([
+    const revenueData = await Order.aggregate([
       {
         $match: {
           createdAt: { $gte: dateFrom },
@@ -421,54 +421,32 @@ exports.getRevenueByRegion = async (req, res) => {
         },
       },
       {
-        $lookup: {
-          from: "addresses",
-          localField: "addressId",
-          foreignField: "_id",
-          as: "address",
-        },
-      },
-      { $unwind: { path: "$address", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "cities",
-          localField: "address.city",
-          foreignField: "_id",
-          as: "city",
-        },
-      },
-      { $unwind: { path: "$city", preserveNullAndEmptyArrays: true } },
-      {
         $group: {
-          _id: {
-            city: "$city.name",
-            state: "$city.state",
-          },
+          _id: null,
           revenue: { $sum: "$grandTotal" },
           orders: { $sum: 1 },
         },
       },
-      { $sort: { revenue: -1 } },
-      { $limit: 5 },
     ]);
 
-    const formattedData = revenueByCity.map((item) => ({
-      region: item._id.city
-        ? `${item._id.city}, ${item._id.state}`
-        : "Unknown",
-      revenue: Math.round(item.revenue / 100000 * 10) / 10, // Convert to lakhs
-      orders: item.orders,
-    }));
+    const totalRevenue = revenueData[0]?.revenue || 0;
+    const totalOrders = revenueData[0]?.orders || 0;
+
+    const formattedData = [{
+      region: "Total Revenue",
+      revenue: totalRevenue,
+      orders: totalOrders,
+    }];
 
     res.status(200).json({
       success: true,
       data: formattedData,
     });
   } catch (error) {
-    console.error("Error fetching revenue by region:", error);
+    console.error("Error fetching revenue:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch revenue by region",
+      message: "Failed to fetch revenue",
       error: error.message,
     });
   }
@@ -512,8 +490,8 @@ exports.getMonthlyTrends = async (req, res) => {
 
       trends.push({
         month: monthName,
-        production: Math.round((sales * 1.15) / 100000 * 10) / 10, // Estimate production slightly higher
-        sales: Math.round(sales / 100000 * 10) / 10, // Convert to lakhs
+        production: Math.round(sales * 1.15 * 10) / 10, // Estimate production slightly higher, NOT in lakhs
+        sales: Math.round(sales * 10) / 10, // NOT in lakhs
       });
     }
 

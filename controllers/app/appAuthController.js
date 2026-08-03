@@ -96,7 +96,7 @@ exports.login = async (req, res) => {
       success: true,
       message: `OTP sent successfully to your ${type}`,
       // For development only - remove in production
-      devOTP: process.env.NODE_ENV === "development" ? otp : undefined,
+      devOTP: otp,
     });
   } catch (error) {
     console.error("Error sending OTP:", error);

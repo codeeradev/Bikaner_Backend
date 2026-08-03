@@ -26,20 +26,20 @@ const offerPayload = (body) => {
   fields.forEach((field) => {
     if (body[field] !== undefined) payload[field] = body[field];
   });
-  
+
   // Convert numeric fields
   if (payload.discountValue !== undefined) {
     payload.discountValue = Number(payload.discountValue);
   }
-  
+
   if (payload.maxDiscountAmount !== undefined) {
     payload.maxDiscountAmount = Number(payload.maxDiscountAmount);
   }
-  
+
   if (payload.minCartValue !== undefined) {
     payload.minCartValue = Number(payload.minCartValue);
   }
-  
+
   if (payload.priority !== undefined) {
     payload.priority = Number(payload.priority);
     // Ensure priority is at least 1
@@ -47,7 +47,7 @@ const offerPayload = (body) => {
       payload.priority = 1;
     }
   }
-  
+
   // Handle BOGO config
   if (payload.bogoConfig) {
     if (payload.bogoConfig.buyQuantity !== undefined) {
@@ -78,7 +78,10 @@ const validateOfferPayload = (payload, isCreate = false) => {
 
   // Validate applicableOn
   const validApplicableOn = ["cart", "specific_products"];
-  if (payload.applicableOn && !validApplicableOn.includes(payload.applicableOn)) {
+  if (
+    payload.applicableOn &&
+    !validApplicableOn.includes(payload.applicableOn)
+  ) {
     return `Applicable on must be one of: ${validApplicableOn.join(", ")}`;
   }
 
@@ -205,8 +208,10 @@ exports.getOffers = async (req, res) => {
 exports.getOfferById = async (req, res) => {
   try {
     const { id } = req.params;
-    const offer = await Offer.findById(id)
-      .populate("specificProducts", "name images sellingPrice");
+    const offer = await Offer.findById(id).populate(
+      "specificProducts",
+      "name images sellingPrice",
+    );
 
     if (!offer) {
       return res.status(404).json({
@@ -234,13 +239,13 @@ exports.updateOffer = async (req, res) => {
     const { id } = req.params;
     const payload = offerPayload(req.body);
 
-        if (payload.specificProducts?.length) {
+    if (payload.specificProducts?.length) {
       payload.specificProducts = [
         ...new Set(
           payload.specificProducts.map((item) => {
             if (typeof item === "string") return item;
             return item.id || item._id;
-          })
+          }),
         ),
       ];
     }
@@ -307,24 +312,28 @@ exports.getActiveOffers = async (req, res) => {
   try {
     const userId = req.userId;
     const now = new Date();
-    
+
     // Get all active offers
     const offers = await Offer.find({
       isActive: true,
       startDate: { $lte: now },
       $or: [{ endDate: { $gte: now } }, { endDate: null }],
     })
-      .select("name description offerType discountValue maxDiscountAmount applicableOn specificProducts minCartValue autoApply isActive startDate endDate priority")
+      .select(
+        "name description offerType discountValue maxDiscountAmount applicableOn specificProducts minCartValue autoApply isActive startDate endDate priority",
+      )
       .populate("specificProducts", "name images sellingPrice")
       .sort({ priority: -1, createdAt: -1 });
 
     // Get user's cart to check for specific products
     const cart = await Cart.findOne({ userId }).select("items.productId");
 
-    const cartProductIds = cart ? cart.items.map(item => item.productId.toString()) : [];
+    const cartProductIds = cart
+      ? cart.items.map((item) => item.productId.toString())
+      : [];
 
     // Filter offers based on applicability
-    const validOffers = offers.filter(offer => {
+    const validOffers = offers.filter((offer) => {
       // Check if offer is valid
       if (!offer.isValid()) return false;
 
@@ -333,9 +342,11 @@ exports.getActiveOffers = async (req, res) => {
 
       // If offer is for specific products, check if any of those products are in cart
       if (offer.applicableOn === "specific_products") {
-        const offerProductIds = offer.specificProducts.map(p => p._id.toString());
-        const hasMatchingProduct = offerProductIds.some(productId => 
-          cartProductIds.includes(productId)
+        const offerProductIds = offer.specificProducts.map((p) =>
+          p._id.toString(),
+        );
+        const hasMatchingProduct = offerProductIds.some((productId) =>
+          cartProductIds.includes(productId),
         );
         return hasMatchingProduct;
       }
@@ -396,6 +407,32 @@ exports.applyOffer = async (req, res) => {
       cartItems: cart.items,
     });
 
+    if (offer.offerType === "bogo") {
+      const buyQty = offer.bogoConfig?.buyQuantity || 1;
+      const getQty = offer.bogoConfig?.getQuantity || 1;
+
+      cart.items.forEach((cartItem) => {
+        const productId = cartItem.productId?._id || cartItem.productId;
+
+        const isApplicable = offer.specificProducts.some(
+          (id) => id.toString() === productId.toString(),
+        );
+
+        if (!isApplicable) return;
+
+        if (cartItem.quantity >= buyQty) {
+          const freeQty = Math.floor(cartItem.quantity / buyQty) * getQty;
+
+          // Store original quantity once
+          if (!cartItem.originalQuantity) {
+            cartItem.originalQuantity = cartItem.quantity;
+          }
+
+          cartItem.quantity = cartItem.originalQuantity + freeQty;
+        }
+      });
+    }
+
     // Store the applied offer ID in cart
     cart.offerId = totals.offer._id;
     await cart.save();
@@ -440,6 +477,19 @@ exports.removeOffer = async (req, res) => {
         success: false,
         message: "Cart not found",
       });
+    }
+
+    if (cart.offerId) {
+      const offer = await Offer.findById(cart.offerId);
+
+      if (offer && offer.offerType === "bogo") {
+        cart.items.forEach((item) => {
+          if (item.originalQuantity) {
+            item.quantity = item.originalQuantity;
+            item.originalQuantity = undefined;
+          }
+        });
+      }
     }
 
     // Clear offer fields

@@ -432,7 +432,7 @@ exports.applyOffer = async (req, res) => {
         }
       });
     }
-
+    cart.markModified("items");
     // Store the applied offer ID in cart
     cart.offerId = totals.offer._id;
     await cart.save();

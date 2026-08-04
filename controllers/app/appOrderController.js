@@ -113,6 +113,7 @@ exports.initiatePayment = async (req, res) => {
       subtotal: totalAmount,
       user,
       couponCode,
+      offerId: cart.offerId,
       cartItems: orderItems, // Pass order items for offer evaluation
     });
 

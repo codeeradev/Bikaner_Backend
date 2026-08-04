@@ -91,6 +91,7 @@ exports.createProduct = async (req, res) => {
       sellingPrice,
       bulkPricing,
       stock,
+      maxQuantity,
       isFeatured,
       isActive,
       nutritionValues,
@@ -187,6 +188,7 @@ exports.createProduct = async (req, res) => {
       sellingPrice,
       bulkPrice: parsedBulkPricing,
       stock,
+      maxQuantity: maxQuantity ? Number(maxQuantity) : null,
       isFeatured,
       isActive,
       nutritionValues: parsedNutritionValues,
@@ -226,6 +228,7 @@ exports.updateProduct = async (req, res) => {
       sellingPrice,
       bulkPricing,
       stock,
+      maxQuantity,
       isFeatured,
       isActive,
       nutritionValues,
@@ -270,6 +273,7 @@ exports.updateProduct = async (req, res) => {
     if (mrp !== undefined) product.mrp = mrp;
     if (sellingPrice !== undefined) product.sellingPrice = sellingPrice;
     if (stock !== undefined) product.stock = stock;
+    if (maxQuantity !== undefined) product.maxQuantity = maxQuantity ? Number(maxQuantity) : null;
     if (isFeatured !== undefined) product.isFeatured = isFeatured;
     if (isActive !== undefined) product.isActive = isActive;
 

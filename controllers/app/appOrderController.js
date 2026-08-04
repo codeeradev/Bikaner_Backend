@@ -83,17 +83,54 @@ exports.initiatePayment = async (req, res) => {
     const orderType = isBulkOrder ? "bulk" : "normal";
 
     console.log(isBulkOrder);
+    
+    // Get settings for payment validation
+    const settings = await Settings.findById("site-settings").select(
+      "enableRazorpayForSellers codLimit",
+    );
+    
     // Check whether Razorpay is enabled for bulk/seller orders
     if (isBulkOrder) {
-      const settings = await Settings.findById("site-settings").select(
-        "enableRazorpayForSellers",
-      );
-
       // Default false: bulk orders become COD unless explicitly enabled
       if (!settings?.enableRazorpayForSellers) {
         paymentMethod = "cod";
       }
+    } else {
+      // For normal users (constRoleId 1), check COD limit
+      if (user.constRoleId === 1 && paymentMethod === "cod") {
+        const codLimit = settings?.codLimit || 10000;
+        
+        // Calculate preliminary totals to check against COD limit
+        const orderItems = cart.items.map((item) => ({
+          productId: item.productId._id,
+          quantity: item.quantity,
+          price: item.price,
+          priceType: item.priceType,
+          subtotal: item.price * item.quantity,
+        }));
+
+        const totalAmount = orderItems.reduce(
+          (sum, item) => sum + item.subtotal,
+          0,
+        );
+
+        const preliminaryTotals = await calculateOrderTotals({
+          subtotal: totalAmount,
+          user,
+          couponCode,
+          offerId: cart.offerId,
+          cartItems: orderItems,
+        });
+
+        if (preliminaryTotals.grandTotal > codLimit) {
+          return res.status(400).json({
+            success: false,
+            message: `Order total ₹${preliminaryTotals.grandTotal.toFixed(2)} exceeds COD limit of ₹${codLimit}. Please use online payment via Razorpay.`,
+          });
+        }
+      }
     }
+    
     // Prepare order items
     const orderItems = cart.items.map((item) => ({
       productId: item.productId._id,

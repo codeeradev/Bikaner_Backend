@@ -33,7 +33,7 @@ exports.getCart = async (req, res) => {
       User.findById(userId).select("zoneId constRoleId"),
       require("../../models/settings")
         .findById("site-settings")
-        .select("enableRazorpayForSellers enableRazorpayForUser"),
+        .select("enableRazorpayForSellers enableRazorpayForUser codLimit"),
     ]);
 
     const cartType = user.constRoleId === 3 ? "bulk" : "selling";
@@ -130,6 +130,11 @@ exports.getCart = async (req, res) => {
       cartData.razorpayForSellers = false;
     }
 
+    // Add COD limit for normal users
+    if (user.constRoleId === 1) {
+      cartData.codLimit = settings?.codLimit || 10000;
+    }
+
     res.json({
       success: true,
       data: cartData,
@@ -191,6 +196,26 @@ exports.addToCart = async (req, res) => {
     let cart = await Cart.findOne({ userId, cartType });
     if (!cart) {
       cart = new Cart({ userId, cartType, items: [] });
+    }
+
+    // Check max quantity limit for normal users (constRoleId 1)
+    if (user.constRoleId === 1) {
+      // Get product maxQuantity if set
+      const productMaxQty = product.maxQuantity;
+      
+      if (productMaxQty && productMaxQty > 0) {
+        // Calculate total quantity for this specific product
+        const existingItem = cart.items.find(item => item.productId.toString() === productId);
+        const existingQuantity = existingItem ? (existingItem.originalQuantity || existingItem.quantity) : 0;
+        const newQuantityForProduct = existingQuantity + Number(quantity);
+
+        if (newQuantityForProduct > productMaxQty) {
+          return res.status(400).json({
+            success: false,
+            message: `Cannot add ${quantity} items. Maximum ${productMaxQty} items allowed for this product. Current quantity: ${existingQuantity}.`,
+          });
+        }
+      }
     }
 
     // Check if product already in cart
@@ -379,6 +404,22 @@ exports.updateCartItem = async (req, res) => {
       // Remove item if quantity is 0 or negative
       cart.items.splice(itemIndex, 1);
     } else {
+      // Check max quantity limit for normal users (constRoleId 1)
+      if (user.constRoleId === 1) {
+        // Get product maxQuantity if set
+        const product = await Product.findById(productId).select("maxQuantity");
+        const productMaxQty = product?.maxQuantity;
+        
+        if (productMaxQty && productMaxQty > 0) {
+          if (Number(quantity) > productMaxQty) {
+            return res.status(400).json({
+              success: false,
+              message: `Cannot update quantity. Maximum ${productMaxQty} items allowed for this product.`,
+            });
+          }
+        }
+      }
+
       const cartItem = cart.items[itemIndex];
       
       // Check if BOGO offer is applied on this item

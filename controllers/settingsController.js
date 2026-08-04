@@ -84,6 +84,7 @@ exports.updateSettings = async (req, res) => {
       globalTax,
       playStoreUrl,
       appStoreUrl,
+      codLimit,
     } = req.body;
 
     let settings = await Settings.findById("site-settings");
@@ -175,6 +176,17 @@ exports.updateSettings = async (req, res) => {
 
       settings.globalTax = result.value;
     }
+    if (codLimit !== undefined) {
+      const result = parseNumberSetting(codLimit, "COD limit", {
+        min: 0,
+      });
+
+      if (result.error) {
+        return res.status(400).json({ success: false, message: result.error });
+      }
+
+      settings.codLimit = result.value;
+    }
 
     // Handle logo upload
     if (req.file) {
@@ -204,7 +216,7 @@ exports.updateSettings = async (req, res) => {
 exports.getPublicSettings = async (req, res) => {
   try {
     let settings = await Settings.findById("site-settings").select(
-      "siteTitle siteLogo siteDescription contactEmail contactPhone range termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl maintenanceMode maintenanceMessage globalDeliveryCharges platformFee globalTax playStoreUrl appStoreUrl"
+      "siteTitle siteLogo siteDescription contactEmail contactPhone range termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl maintenanceMode maintenanceMessage globalDeliveryCharges platformFee globalTax playStoreUrl appStoreUrl codLimit"
     );
 
     // Create default settings if none exist

@@ -105,6 +105,14 @@ const settingsSchema = new mongoose.Schema(
     globalDeliveryCharges: { type: Number, default: 30 },
     platformFee: { type: Number, default: 5 },
     globalTax: { type: Number, default: 0 },
+    
+    // Order Restrictions
+    codLimit: {
+      type: Number,
+      default: 10000,
+      min: 0,
+    },
+    
     // Single document pattern - only one settings document exists
     _id: {
       type: String,

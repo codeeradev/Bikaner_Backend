@@ -58,6 +58,12 @@ const productSchema = new mongoose.Schema(
         default:0
     },
 
+    maxQuantity:{
+        type:Number,
+        default:null,
+        min:1
+    },
+
     isFeatured:{
         type:Boolean,
         default:false

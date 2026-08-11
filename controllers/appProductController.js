@@ -34,7 +34,14 @@ const attachSpecificProductOffers = async (products) => {
   }
   return products.map((product) => {
     const productObject = product.toObject ? product.toObject() : product;
-    return { ...productObject, offers: offersByProduct.get(product._id.toString()) || [] };
+    const productOffers = offersByProduct.get(product._id.toString()) || [];
+    // Offers are already sorted by priority descending. Expose the winning
+    // percentage directly so clients don't need to implement offer selection.
+    return {
+      ...productObject,
+      offers: productOffers,
+      discountValue: productOffers[0]?.discountValue ?? 0,
+    };
   });
 };
 

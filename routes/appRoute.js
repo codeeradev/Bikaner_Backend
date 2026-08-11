@@ -46,6 +46,13 @@ router.get("/settings", settingsController.getPublicSettings);
 // GET active offers
 router.get("/offers", authenticateToken, offerController.getActiveOffers);
 
+// Submit a quote/request for quantities beyond the regular bulk-order flow.
+router.post(
+  "/bulk-order-requests",
+  authenticateToken,
+  require("../controllers/bulkOrderRequestController").createBulkOrderRequest,
+);
+
 // ============= AUTH ROUTES =============
 // POST send OTP (Step 1)
 router.post("/auth/login", appAuthController.login);

@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middleware/upload");
+const { csvUpload } = require("../middleware/upload");
+const { csvImageUpload } = require("../middleware/upload");
 
 // Import middleware
 const {
@@ -25,6 +27,7 @@ const sellerApplicationController = require("../controllers/sellerApplicationCon
 const offerController = require("../controllers/offerController");
 const adminNotificationController = require("../controllers/adminNotificationController");
 const dashboardController = require("../controllers/dashboardController");
+const bulkOrderRequestController = require("../controllers/bulkOrderRequestController");
 
 // ============= DASHBOARD ROUTES =============
 router.get(
@@ -497,6 +500,22 @@ router.patch(
 );
 
 // ============= PRODUCT ROUTES =============
+router.post(
+  "/products/import-csv",
+  authenticateToken,
+  checkPermission(PERMISSIONS.PRODUCTS_CREATE),
+  csvUpload.single("file"),
+  productController.importProductsCsv,
+);
+
+router.post(
+  "/products/upload-images",
+  authenticateToken,
+  checkPermission(PERMISSIONS.PRODUCTS_CREATE),
+  csvImageUpload.array("images", 50),
+  productController.uploadCsvImages,
+);
+
 // GET all products
 router.get(
   "/products",
@@ -545,6 +564,20 @@ router.patch(
   authenticateToken,
   checkPermission(PERMISSIONS.PRODUCTS_EDIT),
   productController.toggleProductStatus,
+);
+
+// Requests submitted by app users when they need quantities above the normal bulk flow.
+router.get(
+  "/bulk-order-requests",
+  authenticateToken,
+  checkPermission(PERMISSIONS.BULK_ORDERS_VIEW),
+  bulkOrderRequestController.getBulkOrderRequests,
+);
+router.patch(
+  "/bulk-order-requests/:id/status",
+  authenticateToken,
+  checkPermission(PERMISSIONS.BULK_ORDERS_EDIT),
+  bulkOrderRequestController.updateBulkOrderRequestStatus,
 );
 
 // PATCH toggle product featured status

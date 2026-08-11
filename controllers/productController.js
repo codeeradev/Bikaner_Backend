@@ -1,6 +1,94 @@
 const Product = require("../models/products");
 const Category = require("../models/categories");
 const { generateSlug } = require("../utils/slugify");
+const path = require("path");
+
+const parseCsv = (text) => {
+  const rows = [];
+  let row = [], value = "", quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === '"' && text[i + 1] === '"' && quoted) { value += '"'; i += 1; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === "," && !quoted) { row.push(value.trim()); value = ""; }
+    else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && text[i + 1] === "\n") i += 1;
+      row.push(value.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = []; value = "";
+    } else value += char;
+  }
+  row.push(value.trim());
+  if (row.some(Boolean)) rows.push(row);
+  const [headers, ...data] = rows;
+  return data.map((values) => Object.fromEntries(headers.map((header, index) => [header.replace(/^\uFEFF/, "").trim(), values[index] || ""])));
+};
+
+exports.importProductsCsv = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: "CSV file is required" });
+    const records = parseCsv(req.file.buffer.toString("utf8"));
+    if (!records.length) return res.status(400).json({ success: false, message: "The CSV has no product rows" });
+    const created = [], errors = [];
+    for (let index = 0; index < records.length; index += 1) {
+      const row = records[index];
+      try {
+        if (!row.name || !row.categoryId) throw new Error("name and categoryId are required");
+        const category = await Category.findById(row.categoryId);
+        if (!category) throw new Error("invalid categoryId");
+        const numeric = (field, fallback) => row[field] === "" || row[field] === undefined ? fallback : Number(row[field]);
+        const imageReference = row.image || row.imagePath || "";
+        // URLs and already-complete asset paths stay untouched. A plain filename
+        // maps to the multi-image uploader's public assets folder.
+        const image = imageReference
+          ? (/^(https?:\/\/|\/assets\/)/i.test(imageReference)
+            ? imageReference
+            : `/assets/uploads/${path.basename(imageReference)}`)
+          : null;
+        let bulkPrice;
+        if (row.bulkPricing || row.bulkPrice) {
+          try {
+            const rawPricing = JSON.parse(row.bulkPricing || row.bulkPrice);
+            if (!Array.isArray(rawPricing) || !rawPricing.length) throw new Error("must be a non-empty JSON array");
+            bulkPrice = rawPricing.map((tier) => ({
+              minQty: Number(tier.minQty), maxQty: Number(tier.maxQty), price: Number(tier.price),
+            }));
+            if (bulkPrice.some((tier) => !Number.isFinite(tier.minQty) || !Number.isFinite(tier.maxQty) || !Number.isFinite(tier.price) || tier.minQty < 0 || tier.maxQty < tier.minQty || tier.price < 0)) {
+              throw new Error("has invalid quantity or price values");
+            }
+          } catch (error) {
+            throw new Error(`bulkPricing ${error.message}`);
+          }
+        }
+        const product = await Product.create({
+          categoryId: row.categoryId, name: row.name, slug: generateSlug(row.name), description: row.description || "",
+          sku: row.sku || "", image, unitValue: numeric("unitValue", 0), unit: row.unit || "",
+          mrp: numeric("mrp", 0), sellingPrice: numeric("sellingPrice", 0), stock: numeric("stock", 0),
+          maxQuantity: row.maxQuantity ? numeric("maxQuantity") : null,
+          bulkPrice,
+          isFeatured: row.isFeatured === "true", isActive: row.isActive !== "false",
+        });
+        created.push(product._id);
+      } catch (error) { errors.push({ row: index + 2, message: error.message }); }
+    }
+    return res.status(errors.length ? 207 : 201).json({ success: errors.length === 0, message: `${created.length} product(s) imported`, data: { created: created.length, errors } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Could not import CSV", error: error.message });
+  }
+};
+
+exports.uploadCsvImages = async (req, res) => {
+  try {
+    if (!req.files?.length) return res.status(400).json({ success: false, message: "Select at least one image" });
+    return res.status(201).json({
+      success: true,
+      message: `${req.files.length} image(s) uploaded`,
+      data: req.files.map((file) => ({ filename: file.filename, path: `/assets/uploads/${file.filename}` })),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Could not upload images", error: error.message });
+  }
+};
 // Get all products
 
 exports.getAllProducts = async (req, res) => {

@@ -1,7 +1,41 @@
 const Product = require("../models/products");
 const Category = require("../models/categories");
 const User = require("../models/users");
+const Offer = require("../models/offers");
 const mongoose = require("mongoose");
+
+// Product APIs intentionally expose only product-level offers. Cart-wide offers
+// are evaluated by the cart/checkout endpoints and are not sent here.
+const attachSpecificProductOffers = async (products) => {
+  const ids = products.map((product) => product._id);
+  if (!ids.length) return products;
+  const now = new Date();
+  const offers = await Offer.find({
+    isActive: true,
+    applicableOn: "specific_products",
+    specificProducts: { $in: ids },
+    startDate: { $lte: now },
+    $or: [{ endDate: { $gte: now } }, { endDate: null }],
+  })
+    .select("name description offerType discountValue maxDiscountAmount applicableOn specificProducts minCartValue startDate endDate priority")
+    .sort({ priority: -1, createdAt: -1 })
+    .lean();
+
+  const offersByProduct = new Map(ids.map((id) => [id.toString(), []]));
+  for (const offer of offers) {
+    for (const productId of offer.specificProducts) {
+      const applicableOffers = offersByProduct.get(productId.toString());
+      if (applicableOffers) {
+        const { specificProducts, ...offerData } = offer;
+        applicableOffers.push({ ...offerData, applicableOn: "specific_products" });
+      }
+    }
+  }
+  return products.map((product) => {
+    const productObject = product.toObject ? product.toObject() : product;
+    return { ...productObject, offers: offersByProduct.get(product._id.toString()) || [] };
+  });
+};
 
 /**
  * Transform product with role-based pricing
@@ -9,9 +43,9 @@ const mongoose = require("mongoose");
  * For regular users: Use sellingPrice
  */
 const transformProductForUser = (product, user) => {
-  const productObj = product.toObject({
-    flattenMaps: true,
-  });
+  const productObj = product.toObject
+    ? product.toObject({ flattenMaps: true })
+    : { ...product };
 
   // Determine pricing based on user role
   if (user && user.constRoleId === 3) {
@@ -58,7 +92,8 @@ exports.getCategoryProducts = async (req, res) => {
     }).populate("categoryId", "name");
 
     // Transform products with role-based pricing
-    const transformedProducts = products.map(product => 
+    const productsWithOffers = await attachSpecificProductOffers(products);
+    const transformedProducts = productsWithOffers.map(product =>
       transformProductForUser(product, user)
     );
 
@@ -117,7 +152,8 @@ exports.getProducts = async (req, res) => {
       .limit(Number(limit));
 
     // Transform products with role-based pricing
-    const transformedProducts = products.map(product => 
+    const productsWithOffers = await attachSpecificProductOffers(products);
+    const transformedProducts = productsWithOffers.map(product =>
       transformProductForUser(product, user)
     );
 
@@ -163,7 +199,8 @@ exports.getProductById = async (req, res) => {
     }
 
     // Transform product with role-based pricing
-    const transformedProduct = transformProductForUser(product, user);
+    const [productWithOffers] = await attachSpecificProductOffers([product]);
+    const transformedProduct = transformProductForUser(productWithOffers, user);
 
     res.status(200).json({
       success: true,
@@ -178,4 +215,3 @@ exports.getProductById = async (req, res) => {
     });
   }
 };
-

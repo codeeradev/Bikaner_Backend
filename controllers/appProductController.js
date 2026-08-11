@@ -12,6 +12,7 @@ const attachSpecificProductOffers = async (products) => {
   const now = new Date();
   const offers = await Offer.find({
     isActive: true,
+    offerType: "percentage_discount",
     applicableOn: "specific_products",
     specificProducts: { $in: ids },
     startDate: { $lte: now },

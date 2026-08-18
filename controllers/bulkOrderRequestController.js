@@ -4,7 +4,7 @@ const BulkOrderRequest = require("../models/bulkOrderRequest");
 
 exports.createBulkOrderRequest = async (req, res) => {
   try {
-    const { productId, quantity } = req.body;
+    const { productId, quantity, notes } = req.body;
     const parsedQuantity = Number(quantity);
 
     if (!mongoose.isValidObjectId(productId) || !Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
@@ -20,8 +20,12 @@ exports.createBulkOrderRequest = async (req, res) => {
       userId: req.userId,
       productId,
       quantity: parsedQuantity,
+      notes: typeof notes === "string" ? notes.trim() : "",
     });
-    await request.populate([{ path: "productId", select: "name image sku" }, { path: "userId", select: "name phone email" }]);
+    await request.populate([
+      { path: "productId", select: "name image sku description unitValue unit mrp sellingPrice stock bulkPrice categoryId", populate: { path: "categoryId", select: "name" } },
+      { path: "userId", select: "name mobile email profileImage cityId zoneId lat lng", populate: [{ path: "cityId", select: "name" }, { path: "zoneId", select: "name" }] },
+    ]);
 
     return res.status(201).json({ success: true, message: "Bulk order request submitted", data: request });
   } catch (error) {
@@ -34,8 +38,8 @@ exports.getBulkOrderRequests = async (req, res) => {
     const { status, page = 1, limit = 50 } = req.query;
     const filter = status ? { status } : {};
     const requests = await BulkOrderRequest.find(filter)
-      .populate("productId", "name image sku")
-      .populate("userId", "name phone email")
+      .populate({ path: "productId", select: "name image sku description unitValue unit mrp sellingPrice stock bulkPrice categoryId", populate: { path: "categoryId", select: "name" } })
+      .populate({ path: "userId", select: "name mobile email profileImage cityId zoneId lat lng", populate: [{ path: "cityId", select: "name" }, { path: "zoneId", select: "name" }] })
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));
@@ -48,13 +52,15 @@ exports.getBulkOrderRequests = async (req, res) => {
 
 exports.updateBulkOrderRequestStatus = async (req, res) => {
   try {
-    const { status } = req.body;
-    if (!["pending", "contacted", "closed"].includes(status)) {
-      return res.status(400).json({ success: false, message: "Status must be pending, contacted, or closed" });
+    const { status, notes } = req.body;
+    if (!["pending", "delivered", "cancelled"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Status must be pending, delivered, or cancelled" });
     }
-    const request = await BulkOrderRequest.findByIdAndUpdate(req.params.id, { status }, { new: true })
-      .populate("productId", "name image sku")
-      .populate("userId", "name phone email");
+    const update = { status };
+    if (typeof notes === "string") update.notes = notes.trim();
+    const request = await BulkOrderRequest.findByIdAndUpdate(req.params.id, update, { new: true })
+      .populate({ path: "productId", select: "name image sku description unitValue unit mrp sellingPrice stock bulkPrice categoryId", populate: { path: "categoryId", select: "name" } })
+      .populate({ path: "userId", select: "name mobile email profileImage cityId zoneId lat lng", populate: [{ path: "cityId", select: "name" }, { path: "zoneId", select: "name" }] });
     if (!request) return res.status(404).json({ success: false, message: "Bulk order request not found" });
     return res.json({ success: true, message: "Request status updated", data: request });
   } catch (error) {

@@ -7,9 +7,10 @@ const bulkOrderRequestSchema = new mongoose.Schema(
     quantity: { type: Number, required: true, min: 1 },
     status: {
       type: String,
-      enum: ["pending", "contacted", "closed"],
+      enum: ["pending", "delivered", "cancelled"],
       default: "pending",
     },
+    notes: { type: String, default: "" },
   },
   { timestamps: true },
 );

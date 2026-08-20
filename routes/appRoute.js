@@ -17,7 +17,7 @@ const {
 
 const settingsController = require("../controllers/settingsController");
 
-const { authenticateToken } = require("../middleware/auth");
+const { authenticateToken, optionalAuth } = require("../middleware/auth");
 
 // Import app controllers
 const appAuthController = require("../controllers/app/appAuthController");
@@ -74,13 +74,14 @@ router.put(
 
 // ============= PRODUCT ROUTES =============
 // GET products with optional filters (token optional for pricing)
-router.get("/products", authenticateToken, getProducts);
+router.get("/products", optionalAuth, getProducts);
 
-// GET products by category (token optional for pricing)
-router.get("/products/:categoryId", authenticateToken, getCategoryProducts);
+// Keep category paths distinct from product IDs so Express does not route every
+// product ID to the category handler.
+router.get("/products/category/:categoryId", optionalAuth, getCategoryProducts);
 
 // GET single product by ID (token optional for pricing)
-router.get("/products/:productId", authenticateToken, getProductById);
+router.get("/products/:productId", optionalAuth, getProductById);
 
 // ============= CART ROUTES (Auth Required) =============
 // GET user's cart

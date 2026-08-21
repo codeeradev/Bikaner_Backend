@@ -13,7 +13,7 @@ const settingsSchema = new mongoose.Schema(
     },
     siteDescription: {
       type: String,
-      default: "Complete franchise management solution",
+      default: "Freshly baked favourites for every occasion.",
     },
     contactEmail: {
       type: String,

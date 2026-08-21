@@ -69,7 +69,7 @@ exports.getCart = async (req, res) => {
       // If offer is invalid, clear it and recalculate without offer
       if (error.statusCode === 400) {
         // Restore original quantities if BOGO was applied
-        const currentOffer = cart.offerId ? await require("../models/offers").findById(cart.offerId) : null;
+        const currentOffer = cart.offerId ? await require("../../models/offers").findById(cart.offerId) : null;
         if (currentOffer && currentOffer.offerType === "bogo") {
           for (const cartItem of cart.items) {
             if (cartItem.originalQuantity) {

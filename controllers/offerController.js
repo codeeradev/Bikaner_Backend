@@ -319,7 +319,9 @@ exports.getActiveOffers = async (req, res) => {
       .sort({ priority: -1, createdAt: -1 });
 
     // Get user's cart to check for specific products
-    const cart = await Cart.findOne({ userId }).select("items.productId");
+    const user = await User.findById(userId).select("constRoleId");
+    const cartType = user?.constRoleId === 3 ? "bulk" : "selling";
+    const cart = await Cart.findOne({ userId, cartType }).select("items.productId");
 
     const cartProductIds = cart ? cart.items.map(item => item.productId.toString()) : [];
 
@@ -369,9 +371,10 @@ exports.applyOffer = async (req, res) => {
       });
     }
 
-    const [user, cart, offer] = await Promise.all([
-      User.findById(userId).select("zoneId"),
-      Cart.findOne({ userId }).populate("items.productId"),
+    const user = await User.findById(userId).select("zoneId constRoleId");
+    const cartType = user?.constRoleId === 3 ? "bulk" : "selling";
+    const [cart, offer] = await Promise.all([
+      Cart.findOne({ userId, cartType }).populate("items.productId"),
       Offer.findById(offerId),
     ]);
 
@@ -440,7 +443,7 @@ exports.applyOffer = async (req, res) => {
     await cart.save();
 
     // Reload cart to get updated data
-    const updatedCart = await Cart.findOne({ userId }).populate("items.productId");
+    const updatedCart = await Cart.findOne({ userId, cartType }).populate("items.productId");
 
     res.json({
       success: true,
@@ -476,7 +479,9 @@ exports.applyOffer = async (req, res) => {
 exports.removeOffer = async (req, res) => {
   try {
     const userId = req.userId;
-    const cart = await Cart.findOne({ userId }).populate("items.productId");
+    const user = await User.findById(userId).select("constRoleId");
+    const cartType = user?.constRoleId === 3 ? "bulk" : "selling";
+    const cart = await Cart.findOne({ userId, cartType }).populate("items.productId");
 
     if (!cart) {
       return res.status(400).json({
@@ -505,7 +510,7 @@ exports.removeOffer = async (req, res) => {
     await cart.save();
 
     // Reload cart to get updated data
-    const updatedCart = await Cart.findOne({ userId }).populate("items.productId");
+    const updatedCart = await Cart.findOne({ userId, cartType }).populate("items.productId");
 
     res.json({
       success: true,

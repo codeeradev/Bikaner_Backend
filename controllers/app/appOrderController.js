@@ -86,7 +86,7 @@ exports.initiatePayment = async (req, res) => {
     
     // Get settings for payment validation
     const settings = await Settings.findById("site-settings").select(
-      "enableRazorpayForSellers codLimit",
+      "enableRazorpayForSellers enableRazorpayForUser codLimit",
     );
     
     // Check whether Razorpay is enabled for bulk/seller orders
@@ -96,6 +96,12 @@ exports.initiatePayment = async (req, res) => {
         paymentMethod = "cod";
       }
     } else {
+      if (paymentMethod === "razorpay" && !settings?.enableRazorpayForUser) {
+        return res.status(400).json({
+          success: false,
+          message: "Online payment is not currently available. Please choose Cash on Delivery.",
+        });
+      }
       // For normal users (constRoleId 1), check COD limit
       if (user.constRoleId === 1 && paymentMethod === "cod") {
         const codLimit = settings?.codLimit || 10000;
@@ -234,6 +240,7 @@ exports.initiatePayment = async (req, res) => {
           amount: totals.grandTotal,
           razorpayOrderId: razorpayOrder.id,
           currency: "INR",
+          keyId: credentials.keyId,
         },
       });
     } catch (razorpayError) {

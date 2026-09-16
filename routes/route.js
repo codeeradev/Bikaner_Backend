@@ -28,6 +28,7 @@ const offerController = require("../controllers/offerController");
 const adminNotificationController = require("../controllers/adminNotificationController");
 const dashboardController = require("../controllers/dashboardController");
 const bulkOrderRequestController = require("../controllers/bulkOrderRequestController");
+const adminFranchiseController = require("../controllers/adminFranchiseController");
 
 // ============= DASHBOARD ROUTES =============
 router.get(
@@ -254,6 +255,15 @@ router.put(
   orderController.updateOrderStatus,
 );
 
+// Hand off a pending order to a franchise store (first assignment or
+// reassignment after a rejection) — see PART A4 of the franchise task plan.
+router.put(
+  "/orders/:orderId/assign-franchise",
+  authenticateToken,
+  checkPermission(PERMISSIONS.ORDERS_ASSIGN_FRANCHISE),
+  orderController.assignOrderToFranchise,
+);
+
 router.put(
   "/orders/:orderId/cancel",
   authenticateToken,
@@ -266,6 +276,92 @@ router.put(
     "OR",
   ),
   orderController.cancelOrder,
+);
+
+// ============= FRANCHISE ROUTES (Admin) =============
+// POST create a store + its manager login
+router.post(
+  "/franchises",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_CREATE),
+  adminFranchiseController.createFranchise,
+);
+
+// GET all stores, with product-count / pending-order stats
+router.get(
+  "/franchises",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_VIEW),
+  adminFranchiseController.getFranchises,
+);
+
+// GET a single store's profile + inventory + order history
+router.get(
+  "/franchises/:id",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_VIEW),
+  adminFranchiseController.getFranchiseById,
+);
+
+// PUT edit a store/manager, optionally resetting the manager's password
+router.put(
+  "/franchises/:id",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_EDIT),
+  adminFranchiseController.updateFranchise,
+);
+
+// PATCH activate / deactivate a store
+router.patch(
+  "/franchises/:id/status",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_EDIT),
+  adminFranchiseController.setFranchiseStatus,
+);
+
+// DELETE a store (soft-delete: sets status to "inactive")
+router.delete(
+  "/franchises/:id",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_DELETE),
+  adminFranchiseController.deleteFranchise,
+);
+
+// ============= FRANCHISE INVENTORY ROUTES (Admin) =============
+// These were missing from the original build — there was no way for
+// an Admin to add/edit/remove a store's products, only the (still
+// UI-less) store-manager app endpoints under /franchise/products.
+
+// GET a store's product catalog, paginated/searchable
+router.get(
+  "/franchises/:id/products",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_VIEW),
+  adminFranchiseController.getFranchiseProducts,
+);
+
+// POST add a product to a store's catalog (sets its stock/mrp/sellingPrice)
+router.post(
+  "/franchises/:id/products",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_EDIT),
+  adminFranchiseController.addFranchiseProduct,
+);
+
+// PUT edit a store's existing product override
+router.put(
+  "/franchises/:id/products/:productId",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_EDIT),
+  adminFranchiseController.updateFranchiseProduct,
+);
+
+// DELETE remove a product from a store's catalog
+router.delete(
+  "/franchises/:id/products/:productId",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_EDIT),
+  adminFranchiseController.removeFranchiseProduct,
 );
 
 // ============= ADMIN NOTIFICATION ROUTES =============

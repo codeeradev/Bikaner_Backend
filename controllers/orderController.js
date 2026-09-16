@@ -1,9 +1,14 @@
 const Order = require("../models/orders");
 const User = require("../models/users");
 const Settings = require("../models/settings");
+const Franchise = require("../models/franchises");
 const {
   sendNotificationWithPersistence,
 } = require("./notificationController");
+// * Referenced as a module object (not destructured) so unit tests can
+// * monkey-patch `franchiseNotificationController.notifyFranchiseOrderAssigned`
+// * without having to reload this whole file.
+const franchiseNotificationController = require("./franchiseNotificationController");
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -472,6 +477,123 @@ exports.cancelOrder = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to cancel order",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Assign (or reassign) a pending order to a franchise store for fulfillment.
+ *
+ * PUT /orders/:orderId/assign-franchise
+ * Body: { franchiseId }
+ *
+ * Used for both the order's first hand-off to a store AND a
+ * reassignment after that store's manager rejects it — either way,
+ * this just overwrites `order.franchiseAssignment` with a fresh
+ * "pending" record. Whether the store's manager sees this as a brand
+ * new assignment or a reassignment (for the notification's wording)
+ * is decided by whether the order already had a franchise on it
+ * before this call — see `wasPreviouslyAssigned` below.
+ *
+ * This does NOT touch `order.orderStatus` — the franchise hand-off is
+ * a parallel workflow, not a step in the order's own status pipeline.
+ */
+exports.assignOrderToFranchise = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { franchiseId } = req.body;
+
+    if (!franchiseId) {
+      return res.status(400).json({
+        success: false,
+        message: "franchiseId is required",
+      });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Terminal orders have nothing left to fulfill — assigning a store
+    // to a cancelled or already-delivered order would just be noise.
+    if (["delivered", "cancelled"].includes(order.orderStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot assign a franchise to a ${order.orderStatus} order`,
+      });
+    }
+
+    const franchise = await Franchise.findById(franchiseId);
+    if (!franchise) {
+      return res.status(404).json({
+        success: false,
+        message: "Franchise store not found",
+      });
+    }
+
+    if (franchise.status !== "active") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot assign an order to a deactivated store",
+      });
+    }
+
+    // Captured BEFORE we overwrite the sub-document below, so the
+    // notification helper can tell a first assignment apart from a
+    // reassignment (rejected → reassigned, or admin re-picking a
+    // different store while the previous assignment was still pending).
+    const wasPreviouslyAssigned = Boolean(
+      order.franchiseAssignment?.franchiseId,
+    );
+
+    order.franchiseAssignment = {
+      franchiseId: franchise._id,
+      status: "pending",
+      assignedAt: new Date(),
+      assignedBy: req.userId,
+      respondedAt: null,
+    };
+
+    await order.save();
+
+    // A notification failure must never roll back or fail the
+    // assignment itself — the order is already correctly assigned by
+    // the time this runs, so log and continue rather than throw.
+    try {
+      await franchiseNotificationController.notifyFranchiseOrderAssigned(
+        franchise,
+        order,
+        wasPreviouslyAssigned,
+      );
+    } catch (notificationError) {
+      console.error(
+        "⚠️ Franchise assignment notification failed:",
+        notificationError,
+      );
+    }
+
+    const populatedOrder = await Order.findById(order._id)
+      .populate("userId", "name email mobile")
+      .populate("items.productId", "name image sku")
+      .populate("franchiseAssignment.franchiseId", "name managerName phone");
+
+    return res.json({
+      success: true,
+      message: wasPreviouslyAssigned
+        ? "Order reassigned to store successfully"
+        : "Order assigned to store successfully",
+      data: populatedOrder,
+    });
+  } catch (error) {
+    console.error("Error assigning order to franchise:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to assign order to franchise",
       error: error.message,
     });
   }

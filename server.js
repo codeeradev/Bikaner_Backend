@@ -19,6 +19,7 @@ const server = http.createServer(app);
 
 const routes = require("./routes/route");
 const appRoutes = require("./routes/appRoute");
+const franchiseAppRoute = require("./routes/franchiseAppRoute");
 
 app.get("/", (req, res) => {
   res.send("Bikaner Biscuit API is running ...");
@@ -26,6 +27,7 @@ app.get("/", (req, res) => {
 
 app.use("/", routes);
 app.use("/api", appRoutes);
+app.use("/franchise", franchiseAppRoute);
 
 const startServer = async () => {
   try {

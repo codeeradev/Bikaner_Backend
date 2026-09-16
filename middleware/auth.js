@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/users");
 const Role = require("../models/roles");
+const Franchise = require("../models/franchises");
 const { SPECIAL_ROLES } = require("../constants/permissions");
 
 /**
@@ -217,10 +218,93 @@ const optionalAuth = async (req, res, next) => {
   }
 };
 
+/**
+ * Middleware to verify a FRANCHISE (store manager) JWT and attach the
+ * store's id to the request as `req.franchiseId`.
+ *
+ * * Deliberately separate from authenticateToken() above: franchise
+ * * managers live in the `franchises` collection, not `users`, and their
+ * * token carries `franchiseId`/`type: "franchise"` instead of `userId`
+ * * — reusing authenticateToken would silently look up the wrong
+ * * collection and 401 every request.
+ */
+const authenticateFranchise = async (req, res, next) => {
+  try {
+    // Get token from Authorization header
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Access token is required",
+      });
+    }
+
+    // Verify token
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your-secret-key",
+    );
+
+    // ! Reject tokens that verify fine but were never issued as a
+    // ! franchise token (e.g. an admin/customer token reused by mistake).
+    if (decoded.type !== "franchise" || !decoded.franchiseId) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token for this endpoint",
+      });
+    }
+
+    const franchise = await Franchise.findById(decoded.franchiseId);
+
+    if (!franchise) {
+      return res.status(401).json({
+        success: false,
+        message: "Store not found",
+      });
+    }
+
+    if (franchise.status !== "active") {
+      return res.status(403).json({
+        success: false,
+        message: "This store has been deactivated. Please contact admin.",
+      });
+    }
+
+    // Attach franchise identity to the request for downstream controllers
+    req.franchiseId = franchise._id;
+    req.franchise = franchise;
+
+    next();
+  } catch (error) {
+    if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+      });
+    }
+
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({
+        success: false,
+        message: "Token expired",
+      });
+    }
+
+    console.error("Franchise authentication error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Authentication failed",
+    });
+  }
+};
+
 module.exports = {
   authenticateToken,
   checkPermission,
   requireAdmin,
   optionalAuth,
   isAdmin,
+  authenticateFranchise,
 };

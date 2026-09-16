@@ -20,7 +20,14 @@ const adminNotificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["new_order", "bulk_order", "seller_application", "general"],
+      enum: [
+        "new_order",
+        "bulk_order",
+        "seller_application",
+        "franchise_order_accepted",
+        "franchise_order_rejected",
+        "general",
+      ],
       required: true,
       default: "general",
     },

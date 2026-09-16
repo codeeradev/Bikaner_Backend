@@ -99,6 +99,11 @@ const PERMISSIONS = {
   BULK_ORDERS_VIEW: createPermission(MODULES.BULK_ORDERS, ACTIONS.VIEW),
   BULK_ORDERS_EDIT: createPermission(MODULES.BULK_ORDERS, ACTIONS.EDIT),
 
+  // Hand off a pending order to a franchise store for fulfillment.
+  // Kept separate from ORDERS_EDIT so this capability can be granted
+  // (or revoked) for a role without touching general order-editing rights.
+  ORDERS_ASSIGN_FRANCHISE: createPermission(MODULES.ORDERS, 'assignFranchise'),
+
   // Seller Approvals
   SELLER_APPROVALS_VIEW: createPermission(MODULES.SELLER_APPROVALS, ACTIONS.VIEW),
   SELLER_APPROVALS_MANAGE: createPermission(MODULES.SELLER_APPROVALS, ACTIONS.MANAGE),
@@ -219,5 +224,5 @@ module.exports = {
   getAllPermissions,
   getPermissionsByModule,
   parsePermission,
-  isValidPermission,
+  isValidPermission
 };

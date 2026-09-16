@@ -149,6 +149,46 @@ exports.notifyAdminSellerApplication = async (application) => {
   });
 };
 
+/**
+ * Notify Admin that a store manager responded to an order assignment.
+ * Called from franchiseOrderController's accept/reject handlers, right
+ * after `order.franchiseAssignment` is saved with the new status.
+ *
+ * @param {import("mongoose").Document} order - The order, already saved with the new franchiseAssignment.status.
+ * @param {import("mongoose").Document} franchise - The responding store (needs at least `name`).
+ * @param {"accepted"|"rejected"} status
+ * @returns {Promise<import("mongoose").Document>} The created (or deduped) admin notification.
+ */
+exports.notifyAdminFranchiseResponse = async (order, franchise, status) => {
+  const isBulkOrder = order.orderType === "bulk";
+  const orderNumber = order.orderNumber || order._id;
+  const storeName = franchise?.name || "A store";
+  const respondedAtTimestamp = order.franchiseAssignment.respondedAt
+    ? new Date(order.franchiseAssignment.respondedAt).getTime()
+    : Date.now();
+
+  return createAdminNotification({
+    title:
+      status === "accepted"
+        ? "Franchise Accepted Order"
+        : "Franchise Rejected Order",
+    message:
+      status === "accepted"
+        ? `${storeName} accepted order #${orderNumber}.`
+        : `${storeName} rejected order #${orderNumber} — it needs reassignment.`,
+    type:
+      status === "accepted"
+        ? "franchise_order_accepted"
+        : "franchise_order_rejected",
+    link: isBulkOrder ? "/orders/bulk" : "/orders/normal",
+    orderId: order._id,
+    // `respondedAt` in the key (rather than just orderId+status) means a
+    // reject → reassign → reject cycle on the same order still produces
+    // a fresh notification each time instead of being deduped away.
+    sourceKey: `order:${order._id}:franchise-response:${status}:${respondedAtTimestamp}`,
+  });
+};
+
 exports.getAdminNotifications = async (req, res) => {
   try {
     if (!canAccessAdminNotifications(req)) {

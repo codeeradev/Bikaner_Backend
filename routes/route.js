@@ -295,7 +295,21 @@ router.get(
   adminFranchiseController.getFranchises,
 );
 
-// GET a single store's profile + inventory + order history
+// GET a single store's profile + inventory + order history, by slug —
+// this is what the admin detail page uses so the URL is readable.
+// Registered before "/franchises/:id" purely for readability; the two
+// paths have different segment counts (/franchises/slug/:slug vs
+// /franchises/:id) so there's no ambiguity either way.
+router.get(
+  "/franchises/slug/:slug",
+  authenticateToken,
+  checkPermission(PERMISSIONS.FRANCHISE_VIEW),
+  adminFranchiseController.getFranchiseBySlug,
+);
+
+// GET a single store's profile + inventory + order history, by _id —
+// kept for any internal/back-office use; the admin UI no longer
+// navigates here directly.
 router.get(
   "/franchises/:id",
   authenticateToken,
@@ -319,7 +333,9 @@ router.patch(
   adminFranchiseController.setFranchiseStatus,
 );
 
-// DELETE a store (soft-delete: sets status to "inactive")
+// DELETE a store (hard-delete: permanently removes the franchise,
+// its inventory and its notifications; past orders keep their
+// franchiseId reference but are left untouched)
 router.delete(
   "/franchises/:id",
   authenticateToken,
@@ -327,38 +343,27 @@ router.delete(
   adminFranchiseController.deleteFranchise,
 );
 
-// ============= FRANCHISE INVENTORY ROUTES (Admin) =============
-// These were missing from the original build — there was no way for
-// an Admin to add/edit/remove a store's products, only the (still
-// UI-less) store-manager app endpoints under /franchise/products.
-
-// GET a store's product catalog, paginated/searchable
-router.get(
-  "/franchises/:id/products",
-  authenticateToken,
-  checkPermission(PERMISSIONS.FRANCHISE_VIEW),
-  adminFranchiseController.getFranchiseProducts,
-);
-
-// POST add a product to a store's catalog (sets its stock/mrp/sellingPrice)
+// POST add a product to a store's catalog (Admin seeding on the
+// manager's behalf, from the franchise detail page)
 router.post(
-  "/franchises/:id/products",
+  "/franchises/:franchiseId/products",
   authenticateToken,
   checkPermission(PERMISSIONS.FRANCHISE_EDIT),
   adminFranchiseController.addFranchiseProduct,
 );
 
-// PUT edit a store's existing product override
+// PUT edit a store's stock/pricing override for a product already in
+// its catalog
 router.put(
-  "/franchises/:id/products/:productId",
+  "/franchises/:franchiseId/products/:productId",
   authenticateToken,
   checkPermission(PERMISSIONS.FRANCHISE_EDIT),
   adminFranchiseController.updateFranchiseProduct,
 );
 
-// DELETE remove a product from a store's catalog
+// DELETE remove a product from a store's catalog entirely
 router.delete(
-  "/franchises/:id/products/:productId",
+  "/franchises/:franchiseId/products/:productId",
   authenticateToken,
   checkPermission(PERMISSIONS.FRANCHISE_EDIT),
   adminFranchiseController.removeFranchiseProduct,

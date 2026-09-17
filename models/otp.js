@@ -9,7 +9,10 @@ const otpSchema = new mongoose.Schema(
     },
     identifierType: {
       type: String,
-      enum: ["email", "mobile"],
+      // "franchise_mobile" is its own type (rather than reusing "mobile")
+      // so a store-manager OTP can never be matched/consumed against a
+      // customer-app OTP request for the same number, and vice versa.
+      enum: ["email", "mobile", "franchise_mobile"],
       required: true,
     },
     otp: {
@@ -25,6 +28,15 @@ const otpSchema = new mongoose.Schema(
     verified: {
       type: Boolean,
       default: false,
+    },
+    // * Failed verify attempts against this specific OTP document.
+    // * Lets verifyOTP lock a code out after repeated wrong guesses
+    // * instead of allowing unlimited brute-force tries within the
+    // * 5-minute expiry window. Unused (stays 0) by flows that don't
+    // * check it.
+    attempts: {
+      type: Number,
+      default: 0,
     },
   },
   {

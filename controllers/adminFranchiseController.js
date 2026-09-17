@@ -1,5 +1,6 @@
 const Franchise = require("../models/franchises");
 const FranchiseInventory = require("../models/franchiseInventory");
+const FranchiseNotification = require("../models/franchiseNotification");
 const Order = require("../models/orders");
 const Product = require("../models/products");
 
@@ -175,6 +176,7 @@ exports.getFranchises = async (req, res) => {
         // is dropped automatically, so no exclusions are needed.
         $project: {
           name: 1,
+          slug: 1,
           address: 1,
           cityId: 1,
           zoneId: 1,
@@ -256,6 +258,57 @@ exports.getFranchiseById = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching franchise detail:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch franchise store",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET /franchises/slug/:slug
+ * Same response shape as getFranchiseById — used by the admin detail
+ * page so the browser URL shows a readable slug instead of the raw
+ * Mongo _id. Sub-resource calls made from that page (edit, status,
+ * delete, inventory) still use the real _id returned in `data.id`.
+ */
+exports.getFranchiseBySlug = async (req, res) => {
+  try {
+    const franchise = await Franchise.findOne({ slug: req.params.slug })
+      .populate("cityId", "name")
+      .populate("zoneId", "name")
+      .populate("createdBy", "name email");
+
+    if (!franchise) {
+      return res.status(404).json({
+        success: false,
+        message: "Franchise store not found",
+      });
+    }
+
+    const [inventory, orderHistory] = await Promise.all([
+      FranchiseInventory.find({ franchiseId: franchise._id })
+        .populate("productId", "name sku image")
+        .sort({ updatedAt: -1 }),
+      Order.find({ "franchiseAssignment.franchiseId": franchise._id })
+        .select(
+          "orderNumber grandTotal orderStatus franchiseAssignment createdAt",
+        )
+        .sort({ createdAt: -1 })
+        .limit(50),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...toPublicFranchise(franchise),
+        inventory,
+        orderHistory,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching franchise detail by slug:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch franchise store",
@@ -390,19 +443,23 @@ exports.setFranchiseStatus = async (req, res) => {
 
 /**
  * DELETE /franchises/:id
- * Soft-delete: a store's order/inventory history has referential value
- * (past orders still point at it), so this deactivates the store
- * instead of removing the document — functionally the same effect as
- * `setFranchiseStatus(..., "inactive")`, exposed as its own endpoint
- * so the Admin UI's "delete" action doesn't have to know that detail.
+ * Hard-delete: permanently removes the store document itself, its
+ * manager login, its full inventory (FranchiseInventory rows), and
+ * its notification history (franchiseNotifications rows). This is
+ * destructive and cannot be undone — the Admin UI's confirmation
+ * dialog warns the user before this endpoint is ever called.
+ *
+ * Past Orders that reference this store (`franchiseAssignment.franchiseId`)
+ * are deliberately left untouched: an order is a financial/transaction
+ * record with its own reporting value, so we don't want deleting a
+ * store to silently rewrite revenue history. Those orders simply keep
+ * a franchiseId that no longer resolves to a live document — the same
+ * pattern already used elsewhere for "referenced but since-removed"
+ * relations (e.g. createdBy).
  */
 exports.deleteFranchise = async (req, res) => {
   try {
-    const franchise = await Franchise.findByIdAndUpdate(
-      req.params.id,
-      { status: "inactive" },
-      { new: true },
-    );
+    const franchise = await Franchise.findById(req.params.id);
 
     if (!franchise) {
       return res.status(404).json({
@@ -411,9 +468,19 @@ exports.deleteFranchise = async (req, res) => {
       });
     }
 
+    // Inventory + notifications are wholly owned by this store — no
+    // other record's integrity depends on them, so they're safe to
+    // hard-delete alongside the franchise itself.
+    await Promise.all([
+      FranchiseInventory.deleteMany({ franchiseId: franchise._id }),
+      FranchiseNotification.deleteMany({ franchiseId: franchise._id }),
+    ]);
+
+    await Franchise.deleteOne({ _id: franchise._id });
+
     return res.status(200).json({
       success: true,
-      message: "Franchise store deactivated",
+      message: "Franchise store and all its data were permanently deleted",
       data: toPublicFranchise(franchise),
     });
   } catch (error) {
@@ -427,120 +494,39 @@ exports.deleteFranchise = async (req, res) => {
 };
 
 /**
- * ------------------------------------------------------------------
- * Franchise inventory management (Admin side)
- * ------------------------------------------------------------------
- * The original task plan only wired up the store-manager side of
- * `FranchiseInventory` (`PUT /franchise/products/:productId`, gated by
- * a franchise-manager JWT). Nothing let an Admin add a product to a
- * store's catalog, which is why "Add Product" had no working endpoint
- * behind it. These three endpoints close that gap using the exact
- * same schema/rules as the store-manager controller, just gated by
- * `authenticateToken` + `FRANCHISE_EDIT` instead of `authenticateFranchise`.
- * ------------------------------------------------------------------
- */
-
-/**
- * GET /franchises/:id/products
- * Paginated / searchable list of a store's inventory rows — the same
- * data `getFranchiseById` embeds in full, but page-able for stores
- * with large catalogs. Also used by the Admin UI to know which
- * products are already in the store before showing "Add Product".
- * Query: { search?, isVisible?, page=1, limit=20 }
- */
-exports.getFranchiseProducts = async (req, res) => {
-  try {
-    const { id: franchiseId } = req.params;
-    const { search, isVisible, page = 1, limit = 20 } = req.query;
-
-    const franchise = await Franchise.findById(franchiseId);
-    if (!franchise) {
-      return res.status(404).json({
-        success: false,
-        message: "Franchise store not found",
-      });
-    }
-
-    const filter = { franchiseId };
-    if (isVisible !== undefined) {
-      filter.isVisible = isVisible === "true";
-    }
-    if (search) {
-      const matchingProductIds = await Product.find({
-        name: new RegExp(search, "i"),
-      }).distinct("_id");
-      filter.productId = { $in: matchingProductIds };
-    }
-
-    const pageNum = Math.max(parseInt(page), 1);
-    const limitNum = Math.max(parseInt(limit), 1);
-    const skip = (pageNum - 1) * limitNum;
-
-    const [inventoryItems, total] = await Promise.all([
-      FranchiseInventory.find(filter)
-        .populate("productId", "name sku image mrp sellingPrice")
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limitNum),
-      FranchiseInventory.countDocuments(filter),
-    ]);
-
-    return res.status(200).json({
-      success: true,
-      data: inventoryItems,
-      pagination: {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        pages: Math.ceil(total / limitNum),
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching franchise products:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch franchise store's products",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * POST /franchises/:id/products
- * Adds a product to a store's catalog (creates its FranchiseInventory
- * row). Body: { productId, stock?, mrp, sellingPrice, isVisible? }
+ * POST /franchises/:franchiseId/products
+ * Body: { productId, stock?, mrp, sellingPrice, isVisible? }
  *
- * `mrp` and `sellingPrice` are required on first creation — same rule
- * the store-manager side enforces in `updateStoreProduct` — since a
- * store's pricing is never inherited from the global product record.
+ * Admin-side equivalent of the store-manager's own "add to my catalog"
+ * flow (see controllers/app/franchiseProductController.js) — this one
+ * lets Admin seed a store's catalog on the manager's behalf, from the
+ * franchise detail page. One FranchiseInventory row per (store,
+ * product) pair; the unique index on the model is the real guard, the
+ * findOne check below just gives a friendlier error message first.
  */
 exports.addFranchiseProduct = async (req, res) => {
   try {
-    const { id: franchiseId } = req.params;
+    const { franchiseId } = req.params;
     const { productId, stock, mrp, sellingPrice, isVisible } = req.body;
 
-    if (!productId) {
+    if (!productId || mrp === undefined || sellingPrice === undefined) {
       return res.status(400).json({
         success: false,
-        message: "productId is required",
-      });
-    }
-    if (mrp === undefined || sellingPrice === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: "mrp and sellingPrice are required to add a product",
+        message: "productId, mrp and sellingPrice are required",
       });
     }
 
-    const franchise = await Franchise.findById(franchiseId);
+    const [franchise, product] = await Promise.all([
+      Franchise.findById(franchiseId),
+      Product.findById(productId),
+    ]);
+
     if (!franchise) {
       return res.status(404).json({
         success: false,
         message: "Franchise store not found",
       });
     }
-
-    const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -567,26 +553,14 @@ exports.addFranchiseProduct = async (req, res) => {
       sellingPrice,
       isVisible: isVisible ?? true,
     });
-
-    const populatedItem = await inventoryItem.populate(
-      "productId",
-      "name sku image mrp sellingPrice",
-    );
+    await inventoryItem.populate("productId", "name sku image");
 
     return res.status(201).json({
       success: true,
       message: "Product added to store successfully",
-      data: populatedItem,
+      data: inventoryItem,
     });
   } catch (error) {
-    // Guards against a race on the (franchiseId, productId) unique index
-    // even though the findOne check above covers the common case.
-    if (error.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: "This product is already in the store's catalog",
-      });
-    }
     console.error("Error adding franchise product:", error);
     return res.status(500).json({
       success: false,
@@ -597,13 +571,15 @@ exports.addFranchiseProduct = async (req, res) => {
 };
 
 /**
- * PUT /franchises/:id/products/:productId
- * Edits a store's existing override for a product (stock/mrp/
- * sellingPrice/isVisible). Only touches fields actually sent.
+ * PUT /franchises/:franchiseId/products/:productId
+ * Body: { stock?, mrp?, sellingPrice?, isVisible? }
+ * Edits this store's stock/pricing override for a product that's
+ * already in its catalog. Which product is linked can't be changed
+ * here — see the FranchiseDetailPage note on why that's a remove+add.
  */
 exports.updateFranchiseProduct = async (req, res) => {
   try {
-    const { id: franchiseId, productId } = req.params;
+    const { franchiseId, productId } = req.params;
     const { stock, mrp, sellingPrice, isVisible } = req.body;
 
     const inventoryItem = await FranchiseInventory.findOne({
@@ -623,16 +599,12 @@ exports.updateFranchiseProduct = async (req, res) => {
     if (isVisible !== undefined) inventoryItem.isVisible = isVisible;
 
     await inventoryItem.save();
-
-    const populatedItem = await inventoryItem.populate(
-      "productId",
-      "name sku image mrp sellingPrice",
-    );
+    await inventoryItem.populate("productId", "name sku image");
 
     return res.status(200).json({
       success: true,
       message: "Store product updated successfully",
-      data: populatedItem,
+      data: inventoryItem,
     });
   } catch (error) {
     console.error("Error updating franchise product:", error);
@@ -645,22 +617,19 @@ exports.updateFranchiseProduct = async (req, res) => {
 };
 
 /**
- * DELETE /franchises/:id/products/:productId
- * Removes a product from a store's catalog entirely (deletes the
- * FranchiseInventory row). Unlike deleting a franchise itself, this
- * has no order-history referential concern — orders keep their own
- * price/qty snapshot and don't look up FranchiseInventory afterwards.
+ * DELETE /franchises/:franchiseId/products/:productId
+ * Removes a product from a store's catalog entirely (not a visibility
+ * toggle — the FranchiseInventory row itself is deleted).
  */
 exports.removeFranchiseProduct = async (req, res) => {
   try {
-    const { id: franchiseId, productId } = req.params;
+    const { franchiseId, productId } = req.params;
 
-    const deleted = await FranchiseInventory.findOneAndDelete({
+    const inventoryItem = await FranchiseInventory.findOneAndDelete({
       franchiseId,
       productId,
     });
-
-    if (!deleted) {
+    if (!inventoryItem) {
       return res.status(404).json({
         success: false,
         message: "This product is not in the store's catalog",

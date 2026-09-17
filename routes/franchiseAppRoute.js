@@ -25,7 +25,12 @@ const franchiseNotificationController = require("../controllers/franchiseNotific
  */
 
 // ============= AUTH =============
+// Franchise-admin web dashboard: email + password, single step.
 router.post("/auth/login", franchiseAuthController.login);
+
+// Store-manager mobile app: mobile number + OTP, two steps.
+router.post("/auth/send-otp", franchiseAuthController.sendOtp);
+router.post("/auth/verify-otp", franchiseAuthController.verifyOtp);
 
 // ============= DASHBOARD =============
 router.get(

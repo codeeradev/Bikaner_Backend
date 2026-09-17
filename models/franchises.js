@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { generateSlug } = require("../utils/slugify");
 
 /**
  * Franchise Schema
@@ -19,6 +20,18 @@ const franchiseSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
+      trim: true,
+    },
+
+    // URL-safe identifier used on the admin detail page instead of the
+    // raw Mongo _id (e.g. /franchise/pizza-hut-mg-road). Generated once
+    // from `name` in the pre("validate") hook below and never changed
+    // afterwards, so existing links/bookmarks never break.
+    slug: {
+      type: String,
+      unique: true,
+      sparse: true, // legacy stores created before this field existed
+      // have slug: undefined until scripts/backfillFranchiseSlugs.js runs
       trim: true,
     },
 
@@ -104,6 +117,41 @@ const franchiseSchema = new mongoose.Schema(
 
 // Fast lookups for the admin list page (status filter) and login (email).
 franchiseSchema.index({ status: 1, createdAt: -1 });
+
+/**
+ * Generate a unique slug from `name` the first time a store is saved.
+ * Runs on create AND whenever scripts/backfillFranchiseSlugs.js calls
+ * .save() on a legacy document that has no slug yet.
+ *
+ * Deliberately never regenerates once a slug exists — even if the admin
+ * later renames the store — so a bookmarked/shared detail-page URL
+ * keeps working. pre("validate") (not "save") so a duplicate-slug
+ * collision surfaces as a normal Mongoose validation error before any
+ * write is attempted.
+ */
+franchiseSchema.pre("validate", async function generateUniqueSlug() {
+  if (this.slug) return;
+  if (!this.name) return; // let the `required` validator report this instead
+
+  const baseSlug = generateSlug(this.name);
+  let candidate = baseSlug;
+  let suffix = 2;
+
+  // Keep trying candidate-2, candidate-3, ... until we find one that's
+  // free. Excludes this document's own _id so re-validating an existing
+  // doc (e.g. during backfill) never collides with itself.
+  while (
+    await this.constructor.findOne({
+      slug: candidate,
+      _id: { $ne: this._id },
+    })
+  ) {
+    candidate = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+
+  this.slug = candidate;
+});
 
 /**
  * Hash the password whenever it is set or changed.

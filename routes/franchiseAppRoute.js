@@ -8,6 +8,7 @@ const franchiseAuthController = require("../controllers/app/franchiseAuthControl
 const franchiseDashboardController = require("../controllers/app/franchiseDashboardController");
 const franchiseProductController = require("../controllers/app/franchiseProductController");
 const franchiseOrderController = require("../controllers/app/franchiseOrderController");
+const franchiseReportController = require("../controllers/app/franchiseReportController");
 const franchiseNotificationController = require("../controllers/franchiseNotificationController");
 
 /**
@@ -31,6 +32,13 @@ router.post("/auth/login", franchiseAuthController.login);
 // Store-manager mobile app: mobile number + OTP, two steps.
 router.post("/auth/send-otp", franchiseAuthController.sendOtp);
 router.post("/auth/verify-otp", franchiseAuthController.verifyOtp);
+
+// Requires a valid franchise token — logs out whichever device sends it.
+router.post(
+  "/auth/logout",
+  authenticateFranchise,
+  franchiseAuthController.logout,
+);
 
 // ============= DASHBOARD =============
 router.get(
@@ -69,6 +77,14 @@ router.put(
   "/orders/:id/reject",
   authenticateFranchise,
   franchiseOrderController.rejectOrder,
+);
+
+// ============= REPORTS =============
+// Query: { range: "today"|"week"|"month"|"custom", startDate?, endDate? }
+router.get(
+  "/reports",
+  authenticateFranchise,
+  franchiseReportController.getReports,
 );
 
 // ============= NOTIFICATIONS =============

@@ -268,6 +268,38 @@ exports.sendOtp = async (req, res) => {
 };
 
 /**
+ * POST /franchise/auth/logout
+ * Requires a valid franchise token (authenticateFranchise).
+ * JWTs here are stateless — there's no server-side session to destroy,
+ * so logout is really just "stop pushing to this device": clear the
+ * fcmToken that /login and /verify-otp registered, so a signed-out
+ * device doesn't keep getting notifications meant for whoever logs in
+ * next. Mirrors controllers/authController.js#logout otherwise.
+ */
+exports.logout = async (req, res) => {
+  try {
+    const franchise = req.franchise;
+
+    if (franchise.fcmToken) {
+      franchise.fcmToken = undefined;
+      await franchise.save();
+    }
+
+    return res.json({
+      success: true,
+      message: "Logout successful",
+    });
+  } catch (error) {
+    console.error("Franchise logout error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Logout failed",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * POST /franchise/auth/verify-otp
  * Body: { mobile, otp, fcmToken? }
  * Step 2 of the mobile-app login. Issues the same franchise-scoped JWT

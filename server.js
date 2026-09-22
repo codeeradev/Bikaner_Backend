@@ -4,6 +4,7 @@ const path = require("path");
 require("dotenv").config();
 const connectDb = require("./database");
 const { seedRoles } = require("./utils/seedRoles");
+const { seedUsers } = require("./utils/seedUsers");
 
 const cors = require("cors");
 
@@ -38,6 +39,8 @@ const startServer = async () => {
     // Seed roles and admin user if not exists
     console.log("\n📦 Checking database setup...");
     await seedRoles();
+    // Ensure an admin exists on a fresh database; never modifies existing users
+    await seedUsers({ onlyMissing: true, only: ["admin"] });
 
     // Start server
     const PORT = process.env.PORT || 9020;

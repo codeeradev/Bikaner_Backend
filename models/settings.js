@@ -105,6 +105,17 @@ const settingsSchema = new mongoose.Schema(
     globalDeliveryCharges: { type: Number, default: 30 },
     platformFee: { type: Number, default: 5 },
     globalTax: { type: Number, default: 0 },
+
+    // Location / Maps API Keys — consumed by the mobile app for maps,
+    // geocoding, and Ola cab/location integrations.
+    olaApiKey: {
+      type: String,
+      default: "",
+    },
+    googleApiKey: {
+      type: String,
+      default: "",
+    },
     
     // Order Restrictions
     codLimit: {

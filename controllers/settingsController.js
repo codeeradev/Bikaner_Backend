@@ -85,6 +85,8 @@ exports.updateSettings = async (req, res) => {
       playStoreUrl,
       appStoreUrl,
       codLimit,
+      olaApiKey,
+      googleApiKey,
     } = req.body;
 
     let settings = await Settings.findById("site-settings");
@@ -187,10 +189,12 @@ exports.updateSettings = async (req, res) => {
 
       settings.codLimit = result.value;
     }
+    if (olaApiKey !== undefined) settings.olaApiKey = olaApiKey;
+    if (googleApiKey !== undefined) settings.googleApiKey = googleApiKey;
 
     // Handle logo upload
     if (req.file) {
-      settings.siteLogo = `/uploads/${req.file.filename}`;
+      settings.siteLogo = `/assets/uploads/${req.file.filename}`;
     }
 
     await settings.save();
@@ -216,7 +220,7 @@ exports.updateSettings = async (req, res) => {
 exports.getPublicSettings = async (req, res) => {
   try {
     let settings = await Settings.findById("site-settings").select(
-      "siteTitle siteLogo siteDescription contactEmail contactPhone range termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl maintenanceMode maintenanceMessage globalDeliveryCharges platformFee globalTax playStoreUrl appStoreUrl codLimit"
+      "siteTitle siteLogo siteDescription contactEmail contactPhone range termsAndConditions privacyPolicy aboutUs refundPolicy shippingPolicy facebookUrl instagramUrl twitterUrl linkedinUrl maintenanceMode maintenanceMessage globalDeliveryCharges platformFee globalTax playStoreUrl appStoreUrl codLimit olaApiKey googleApiKey"
     );
 
     // Create default settings if none exist

@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon server.js",
-    "seed:roles": "node utils/seedRoles.js"
+    "seed:roles": "node utils/seedRoles.js",
+    "seed:users": "node utils/seedUsers.js",
+    "seed:all": "node utils/seedAll.js"
   },
   "keywords": [],
   "author": "",

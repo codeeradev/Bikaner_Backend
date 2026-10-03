@@ -4,11 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon server.js",
-    "seed:roles": "node utils/seedRoles.js",
-    "seed:users": "node utils/seedUsers.js",
-    "seed:all": "node utils/seedAll.js"
+    "build": "node canary.js && tsc",
+    "prepare": "node canary.js"
   },
   "keywords": [],
   "author": "",

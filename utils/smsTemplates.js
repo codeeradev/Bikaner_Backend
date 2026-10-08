@@ -8,7 +8,7 @@ const SMS_TEMPLATES = Object.freeze({
     templateId: "196107",
     smsType: "OTP",
     build: (otp) =>
-      `Your Bikaner Bakeryy login OTP is ${otp}. This OTP is valid for 5 minutes. Do not share it with anyone.`,
+      `Your Bikaner Bakeryy login OTP is ${otp}. This OTP is valid for 10 minutes. Do not share it with anyone.`,
   },
 
   ORDER_PLACED: {

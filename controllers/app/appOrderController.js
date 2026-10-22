@@ -1,5 +1,6 @@
 const Order = require("../../models/orders");
 const Cart = require("../../models/cart");
+const { sendOrderSMS } = require("../../utils/orderSMS");
 const Product = require("../../models/products");
 const User = require("../../models/users");
 const Address = require("../../models/address");
@@ -208,7 +209,14 @@ exports.initiatePayment = async (req, res) => {
           notificationError,
         );
       }
-
+      try {
+        await sendOrderSMS("ORDER_PLACED", user, populatedOrder);
+      } catch (smsError) {
+        console.error(
+          "❌ Order placed SMS failed:",
+          smsError.response?.data || smsError.message
+        );
+      }
       return res.status(201).json({
         success: true,
         message: "Order created successfully (COD)",
@@ -320,7 +328,7 @@ exports.verifyPayment = async (req, res) => {
     await order.save();
 
     // Clear cart
-    const user = await User.findById(userId).select("constRoleId");
+    const user = await User.findById(userId).select("constRoleId mobile");
 
     const cartType = user.constRoleId === 3 ? "bulk" : "selling";
 
@@ -346,6 +354,15 @@ exports.verifyPayment = async (req, res) => {
       console.error(
         "⚠️ Admin notification creation failed:",
         notificationError,
+      );
+    }
+
+    try {
+      await sendOrderSMS("ORDER_PLACED", user, populatedOrder);
+    } catch (smsError) {
+      console.error(
+        "❌ Paid order SMS failed:",
+        smsError.response?.data || smsError.message
       );
     }
 
@@ -481,6 +498,16 @@ exports.cancelOrder = async (req, res) => {
     order.cancelledAt = new Date();
 
     await order.save();
+
+    try {
+      const user = await User.findById(userId);
+      await sendOrderSMS("ORDER_CANCELLED", user, order);
+    } catch (smsError) {
+      console.error(
+        "❌ Order cancellation SMS failed:",
+        smsError.response?.data || smsError.message
+      );
+    }
 
     res.json({
       success: true,

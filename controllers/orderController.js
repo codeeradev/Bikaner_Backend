@@ -1,5 +1,6 @@
 const Order = require("../models/orders");
 const User = require("../models/users");
+const { sendOrderSMS } = require("../utils/orderSMS");
 const Settings = require("../models/settings");
 const Franchise = require("../models/franchises");
 const {
@@ -385,9 +386,27 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     await order.save();
-
     // Get user for notification
     const user = await User.findById(order.userId);
+
+    // Send order status SMS after the user has been loaded. SMS errors must
+    // not undo the status change, which has already been saved.
+    try {
+      if (orderStatus === "accepted") {
+        await sendOrderSMS("ORDER_STATUS_CHANGED", user, order, {
+          status: orderStatus,
+        });
+      } else if (orderStatus === "delivered") {
+        await sendOrderSMS("ORDER_DELIVERED", user, order);
+      } else if (orderStatus === "cancelled") {
+        await sendOrderSMS("ORDER_CANCELLED", user, order);
+      }
+    } catch (smsError) {
+      console.error(
+        `❌ Order status SMS failed (${orderStatus}):`,
+        smsError.response?.data || smsError.message
+      );
+    }
 
     // Send notification with persistence (creates DB record + sends FCM)
     try {
@@ -460,6 +479,16 @@ exports.cancelOrder = async (req, res) => {
     order.cancelReason = cancelReason || "Cancelled by admin";
     order.cancelledAt = new Date();
     await order.save();
+
+    try {
+      const user = await User.findById(order.userId);
+      await sendOrderSMS("ORDER_CANCELLED", user, order);
+    } catch (smsError) {
+      console.error(
+        "❌ Order cancellation SMS failed:",
+        smsError.response?.data || smsError.message
+      );
+    }
 
     // Populate and return
     const populatedOrder = await Order.findById(order._id)

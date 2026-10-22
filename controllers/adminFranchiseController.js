@@ -23,6 +23,7 @@ const Product = require("../models/products");
 const toPublicFranchise = (franchise) => {
   const obj = franchise.toObject ? franchise.toObject() : franchise;
   delete obj.password;
+  delete obj.passwordEncrypted;
   return obj;
 };
 
@@ -189,6 +190,7 @@ exports.getFranchises = async (req, res) => {
           createdAt: 1,
           updatedAt: 1,
           productCount: { $size: "$inventory" },
+          totalStock: { $sum: "$inventory.stock" },
           pendingOrders: {
             $ifNull: [{ $arrayElemAt: ["$pendingOrderStats.count", 0] }, 0],
           },
@@ -647,5 +649,23 @@ exports.removeFranchiseProduct = async (req, res) => {
       message: "Failed to remove product from store",
       error: error.message,
     });
+  }
+};
+
+// Dedicated endpoint: credentials are never included in list/detail responses.
+exports.revealPassword = async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    if (!require("mongoose").isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid franchise id" });
+    }
+    const franchise = await Franchise.findById(req.params.id).select("+passwordEncrypted");
+    if (!franchise) return res.status(404).json({ success: false, message: "Store not found" });
+    const password = franchise.passwordEncrypted
+      ? require("../utils/franchiseCredential").decryptPassword(franchise.passwordEncrypted)
+      : null;
+    return res.json({ success: true, data: { password }, message: password ? undefined : "Available after this franchise next signs in with its password." });
+  } catch {
+    return res.status(503).json({ success: false, message: "Password viewing is unavailable. Check the server credential key configuration." });
   }
 };

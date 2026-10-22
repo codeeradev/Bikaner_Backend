@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { encryptPassword } = require("../utils/franchiseCredential");
 const { generateSlug } = require("../utils/slugify");
 
 /**
@@ -84,6 +85,8 @@ const franchiseSchema = new mongoose.Schema(
       select: false, // ! never return the hash by default — opt in with .select("+password")
     },
 
+    passwordEncrypted: { type: String, select: false },
+
     phone: {
       type: String,
       required: true,
@@ -162,6 +165,7 @@ franchiseSchema.pre("validate", async function generateUniqueSlug() {
 franchiseSchema.pre("save", async function hashPasswordBeforeSave() {
   if (!this.isModified("password")) return;
 
+  this.passwordEncrypted = encryptPassword(this.password);
   const SALT_ROUNDS = 10;
   this.password = await bcrypt.hash(this.password, SALT_ROUNDS);
   // No try/catch + next(error) needed: an async pre-hook that throws

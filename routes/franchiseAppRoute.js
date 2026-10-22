@@ -18,10 +18,9 @@ const franchiseNotificationController = require("../controllers/franchiseNotific
  * login requires a valid franchise-scoped JWT — see
  * middleware/auth.js#authenticateFranchise.
  *
- * No UI consumes most of these yet (the store-manager app itself is
- * still deferred), but they're built and testable now via
- * Postman/curl so that app can be built straight against a stable
- * backend later.
+ * Consumed by the separate React web application in ../Franchise.
+ * Store identity always comes from authenticateFranchise, never a
+ * client-supplied store id.
  * ------------------------------------------------------------------
  */
 
@@ -105,5 +104,10 @@ router.put(
   authenticateFranchise,
   franchiseNotificationController.markAllFranchiseNotificationsRead,
 );
+
+const stockRequests = require("../controllers/franchiseStockRequestController");
+router.get("/stock-requests", authenticateFranchise, stockRequests.list);
+router.post("/stock-requests", authenticateFranchise, stockRequests.create);
+router.put("/stock-requests/:id/receive", authenticateFranchise, stockRequests.receive);
 
 module.exports = router;

@@ -29,6 +29,9 @@ const franchiseInventorySchema = new mongoose.Schema(
       min: 0, // ! negative stock should never reach the DB
     },
 
+    minimumStock: { type: Number, default: 10, min: 0, validate: Number.isSafeInteger },
+    receivedStockRequests: { type: [mongoose.Schema.Types.ObjectId], default: [], select: false },
+
     mrp: {
       type: Number,
       required: true,

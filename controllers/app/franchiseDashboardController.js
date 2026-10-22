@@ -1,3 +1,4 @@
+const { getInventorySummary } = require("../../utils/inventorySummary");
 const FranchiseInventory = require("../../models/franchiseInventory");
 const Order = require("../../models/orders");
 
@@ -9,11 +10,6 @@ const Order = require("../../models/orders");
  * now (incoming assignments) and what happened recently.
  * ------------------------------------------------------------------
  */
-
-// Stock at or below this quantity is surfaced as "running low" so a
-// manager can restock before it hits zero. Kept as a named constant
-// rather than a magic number so the threshold is easy to find and tune.
-const LOW_STOCK_THRESHOLD = 5;
 
 // How many recent orders to show on the Home screen — a dashboard is a
 // glance, not a list; the full history lives behind GET /franchise/orders.
@@ -28,17 +24,18 @@ exports.getDashboard = async (req, res) => {
     const franchiseId = req.franchiseId;
 
     const [
-      totalProductCount,
+      inventorySummary,
       outOfStockCount,
       lowStockCount,
       pendingAssignmentCount,
       recentOrders,
     ] = await Promise.all([
-      FranchiseInventory.countDocuments({ franchiseId }),
+      getInventorySummary(franchiseId),
       FranchiseInventory.countDocuments({ franchiseId, stock: 0 }),
       FranchiseInventory.countDocuments({
         franchiseId,
-        stock: { $gt: 0, $lte: LOW_STOCK_THRESHOLD },
+        stock: { $gt: 0 },
+        $expr: { $lte: ["$stock", { $ifNull: ["$minimumStock", 10] }] },
       }),
       Order.countDocuments({
         "franchiseAssignment.franchiseId": franchiseId,
@@ -54,7 +51,7 @@ exports.getDashboard = async (req, res) => {
       success: true,
       data: {
         inventory: {
-          totalProducts: totalProductCount,
+          ...inventorySummary,
           outOfStock: outOfStockCount,
           lowStock: lowStockCount,
         },

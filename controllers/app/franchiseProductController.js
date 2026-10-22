@@ -1,3 +1,4 @@
+const { getInventorySummary } = require("../../utils/inventorySummary");
 const FranchiseInventory = require("../../models/franchiseInventory");
 const Product = require("../../models/products");
 
@@ -42,18 +43,20 @@ exports.getStoreProducts = async (req, res) => {
     const limitNum = Math.max(parseInt(limit), 1);
     const skip = (pageNum - 1) * limitNum;
 
-    const [inventoryItems, total] = await Promise.all([
+    const [inventoryItems, total, summary] = await Promise.all([
       FranchiseInventory.find(filter)
         .populate("productId", "name sku image")
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limitNum),
       FranchiseInventory.countDocuments(filter),
+      getInventorySummary(franchiseId),
     ]);
 
     return res.status(200).json({
       success: true,
       data: inventoryItems,
+      summary,
       pagination: {
         total,
         page: pageNum,
@@ -84,7 +87,10 @@ exports.updateStoreProduct = async (req, res) => {
   try {
     const franchiseId = req.franchiseId;
     const { productId } = req.params;
-    const { stock, mrp, sellingPrice, isVisible } = req.body;
+    const { stock, mrp, sellingPrice, isVisible, minimumStock } = req.body;
+    if (minimumStock !== undefined && (!Number.isSafeInteger(minimumStock) || minimumStock < 0 || minimumStock > 1000000)) {
+      return res.status(400).json({success:false,message:"Minimum stock must be a whole number from 0 to 1,000,000"});
+    }
 
     const product = await Product.findById(productId);
     if (!product) {
@@ -127,6 +133,7 @@ exports.updateStoreProduct = async (req, res) => {
       });
     }
 
+    if (minimumStock !== undefined) inventoryItem.minimumStock = minimumStock;
     await inventoryItem.save();
 
     const populatedItem = await inventoryItem.populate(

@@ -278,6 +278,10 @@ router.put(
   orderController.cancelOrder,
 );
 
+const stockRequests = require("../controllers/franchiseStockRequestController");
+router.get("/franchise-stock-requests", authenticateToken, checkPermission(PERMISSIONS.FRANCHISE_VIEW), stockRequests.list);
+router.put("/franchise-stock-requests/:id", authenticateToken, checkPermission(PERMISSIONS.FRANCHISE_EDIT), stockRequests.review);
+
 // ============= FRANCHISE ROUTES (Admin) =============
 // POST create a store + its manager login
 router.post(
@@ -286,6 +290,8 @@ router.post(
   checkPermission(PERMISSIONS.FRANCHISE_CREATE),
   adminFranchiseController.createFranchise,
 );
+
+router.get("/franchises/:id/password", authenticateToken, requireAdmin, adminFranchiseController.revealPassword);
 
 // GET all stores, with product-count / pending-order stats
 router.get(

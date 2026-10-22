@@ -110,7 +110,7 @@ exports.login = async (req, res) => {
     // back in explicitly here — that's the whole point of hiding it.
     const franchise = await Franchise.findOne({
       email: email.toLowerCase().trim(),
-    }).select("+password");
+    }).select("+password +passwordEncrypted");
 
     if (!franchise) {
       return res.status(401).json({
@@ -144,6 +144,14 @@ exports.login = async (req, res) => {
       await franchise.save();
     }
 
+    // Upgrade legacy credentials only after password verification. A concurrent
+    // password change must not be overwritten with the previous credential.
+    if (!franchise.passwordEncrypted && process.env.FRANCHISE_CREDENTIAL_KEY) {
+      await Franchise.updateOne(
+        { _id: franchise._id, password: franchise.password, passwordEncrypted: { $exists: false } },
+        { $set: { passwordEncrypted: require("../../utils/franchiseCredential").encryptPassword(password) } },
+      );
+    }
     const token = generateFranchiseToken(franchise._id);
 
     return res.json({

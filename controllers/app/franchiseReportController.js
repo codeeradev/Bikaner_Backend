@@ -21,11 +21,6 @@ const FranchiseInventory = require("../../models/franchiseInventory");
  * ------------------------------------------------------------------
  */
 
-// Mirrors the threshold in franchiseDashboardController.js — the
-// Reports screen's "N products are low on stock" banner and the
-// Home screen's low-stock count should never disagree.
-const LOW_STOCK_THRESHOLD = 5;
-
 // How many products to return in the "Top selling products" list —
 // matches the 3 rows shown on the Reports screen.
 const TOP_PRODUCTS_LIMIT = 3;
@@ -252,7 +247,8 @@ exports.getReports = async (req, res) => {
 
       FranchiseInventory.countDocuments({
         franchiseId,
-        stock: { $gt: 0, $lte: LOW_STOCK_THRESHOLD },
+        stock: { $gt: 0 },
+        $expr: { $lte: ["$stock", { $ifNull: ["$minimumStock", 10] }] },
       }),
 
       acceptedSalesTotal(franchiseId, prevStart, prevEnd),
